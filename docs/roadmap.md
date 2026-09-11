@@ -20,43 +20,48 @@ those as part of the phase, not after.
 Owes: `docs/6502-reference.md` (already written this pass — read it
 before starting), `docs/testing-strategy.md`.
 
-- [ ] Pick and document a build system as the *first* thing this phase
-      does (CMake is the most portable default for a C project with a
-      test suite and later an SDL2 dependency; a hand-written Makefile
-      is fine too if you want zero build-system dependency — either is
-      acceptable, just write the decision and the exact commands down in
-      the README and `docs/testing-strategy.md` once chosen, and don't
-      leave both half-set-up).
-- [ ] Implement the legal 6502 instruction set: all official opcodes,
+- [x] Pick and document a build system as the *first* thing this phase
+      does — **decided: a plain Makefile**, not CMake, since CMake
+      wasn't installed on the machine this was first built on and the
+      project only needs gcc/clang; see the README and
+      `docs/testing-strategy.md` for the exact commands.
+- [x] Implement the legal 6502 instruction set: all official opcodes,
       all addressing modes, correct cycle counts, correct flag
-      behavior (including the documented decimal-mode quirks).
-- [ ] Hand-written unit tests for a representative sample of
+      behavior (including the documented decimal-mode quirks). See
+      `src/cpu/cpu6502.c`.
+- [x] Hand-written unit tests for a representative sample of
       instructions/addressing modes/flag edge cases *before* running the
-      full Dormann suite — the full suite tells you pass/fail at a trap
-      address, not which specific instruction is wrong, so you want
-      finer-grained tests you wrote yourself to localize a failure fast.
-- [ ] `scripts/fetch_dormann_tests.sh` fetches Klaus Dormann's suite
+      full Dormann suite. See `tests/unit/test_cpu.c` (70 assertions,
+      covering load/store, indexed-addressing page-crossing cycle
+      counts, RMW, binary and decimal ADC/SBC, branches, `JMP`
+      indirect's page-boundary bug, `JSR`/`RTS`, `PHA`/`PHP`/`PLA`/`PLP`,
+      `BRK`/`RTI`, and the IRQ/NMI polling/delay behavior below).
+- [x] `scripts/fetch_dormann_tests.sh` fetches Klaus Dormann's suite
       on demand (never vendored — see `CLAUDE.md`'s license discipline).
-      Assemble it with an external assembler (`ca65`/`vasm`/etc. — this
-      project does not need its own 6502 assembler; that's real, needed
-      only if hand-assembling small test programs later becomes
-      annoying, see `docs/testing-strategy.md`).
-- [ ] The core passes the Dormann suite: traps at its documented success
-      address (`$3469` for the standard `6502_functional_test.a65` build
-      — verify this against the suite's own listing/comments once
-      fetched, don't hardcode it from memory alone).
-- [ ] Decide NOW whether the CPU core exposes a "step exactly one cycle"
+      In practice the fetched copy already ships a prebuilt flat-64KB
+      `bin_files/6502_functional_test.bin` (built by the suite's own
+      author) — used directly rather than reassembling with `ca65`/
+      `vasm`, since it's equally "fetched, not vendored." Assembling by
+      hand is still the fallback if a future fetch doesn't include one.
+- [x] The core passes the Dormann suite: traps at its documented success
+      address — confirmed as `$3469` by reading the fetched copy's own
+      `bin_files/6502_functional_test.lst` listing directly (its
+      `success` macro expands to `jmp *` at that exact address), not
+      trusted from memory. `make dormann` runs it; last run trapped
+      there after 96,241,367 cycles.
+- [x] Decide NOW whether the CPU core exposes a "step exactly one cycle"
       interface or a "step exactly one instruction" interface — Phase 4
-      (scanline-accurate VIC-II) needs the former. Retrofitting
-      cycle-level stepping onto an instruction-stepped core later is a
-      real rewrite, not a small patch — see `docs/machine.md`'s "Cycle
-      interleaving" section for exactly what's needed and why. Get this
-      right in Phase 1.
-- [ ] Undocumented/"illegal" opcodes: explicitly **deferred**, tracked
+      (scanline-accurate VIC-II) needs the former. **Decided: per-cycle**
+      — `cpu6502_cycle()` executes exactly one PHI2 cycle via an
+      explicit micro-op state machine (`cpu->step` within the current
+      opcode), never a whole instruction at once. See
+      `docs/6502-reference.md` and `docs/machine.md`.
+- [x] Undocumented/"illegal" opcodes: explicitly **deferred**, tracked
       as Phase 10. The stock KERNAL/BASIC ROM never executes one; only
       some commercial software (often deliberately, as copy protection)
-      does. Don't build them now — note the deferral in
-      `docs/6502-reference.md` instead of half-implementing them.
+      does. The core doesn't crash or silently treat one as a NOP —
+      `cpu6502_cycle()` sets `illegal_opcode_hit`/`last_illegal_opcode`
+      so a caller can detect and report it (see `docs/6502-reference.md`).
 
 ## Phase 2 — Memory map, PLA bank-switching, 6510 I/O port
 

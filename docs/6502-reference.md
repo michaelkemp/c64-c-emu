@@ -91,20 +91,37 @@ at a specific, documented address on success.
   fetch-on-demand for anything not originally authored here.
 - Assemble it with an external assembler (`ca65`, `vasm`, or similar —
   install via the system package manager; this project does not need to
-  write its own 6502 assembler to do this).
-- Load the assembled binary into a flat 64KB RAM test harness (no C64
-  memory map needed for this — that's the whole point of keeping the
-  CPU core bus-agnostic) and run until the PC stops advancing (a trap).
-  **Verify the actual success address from the fetched suite's own
-  source/listing** rather than trusting a number written down secondhand
-  — different builds/versions of the suite can trap at different
-  addresses depending on assembly options.
+  write its own 6502 assembler to do this) **if** the fetched copy
+  doesn't already include a prebuilt binary. In practice, the fetched
+  repo ships one at `bin_files/6502_functional_test.bin` (a flat 64KB
+  image, file offset == address, built by the suite's own author) —
+  `tests/dormann/run_dormann.c` uses that directly, which is equally
+  "fetched, not vendored" and avoids needing a working as65/ca65 setup
+  for its specific `macro`/`org` syntax (as65-style, not ca65-compatible
+  as-is).
+- Load the binary into a flat 64KB RAM test harness (no C64 memory map
+  needed for this — that's the whole point of keeping the CPU core
+  bus-agnostic), set PC to the suite's own `start` label (`$0400` —
+  **not** via a real reset: the suite's own reset vector deliberately
+  points at a spurious-reset trap), and run until the PC stops advancing
+  (a self-jump/self-branch trap).
+  **Verified the actual success address directly from the fetched
+  suite's own `bin_files/6502_functional_test.lst` listing** rather than
+  trusting a number written down secondhand: its `success` macro expands
+  to `jmp *` at `$3469` — different builds/versions of the suite can
+  trap at different addresses depending on assembly options, so this was
+  confirmed against this fetched copy specifically, not assumed.
 - A run that traps anywhere else, or never traps, means a real bug —
   the suite's own comments around each test block usually pinpoint which
-  opcode/mode was being exercised near the trap address, which is why
+  opcode/mode was being exercised near the trap address (look the hex
+  address up in the `.lst` file's left margin), which is why
   the hand-written per-instruction unit tests (Phase 1's other
   checklist item) matter too: they narrow down a failure far faster than
   re-reading the whole suite from scratch.
 - `docs/testing-strategy.md` has the full test-tier writeup (unit tests
   → Dormann suite → integration boot tests) that this suite is the
   middle tier of.
+- **Status: passing.** `make dormann` builds `tests/dormann/run_dormann.c`
+  against the CPU core in `src/cpu/cpu6502.c` and runs it; the last run
+  trapped at the documented success address `$3469` after 96,241,367
+  cycles.

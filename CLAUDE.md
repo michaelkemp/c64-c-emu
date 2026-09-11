@@ -128,19 +128,30 @@ scripts/
   fetch_dormann_tests.sh # fetches the GPLv3 Klaus Dormann suite on demand
   stage_roms.sh          # copies the user's own local ROM dumps into
                           # gitignored roms/ -- never downloads ROMs itself
-src/                    # not created yet -- first code lands in Phase 1
-tests/                  # not created yet -- first tests land in Phase 1
+src/
+  bus.h                 # generic Bus interface every chip module dispatches through
+  cpu/
+    cpu6502.h            # the 6502/6510 core's public interface (Phase 1)
+    cpu6502.c            # cycle-stepped implementation -- see docs/6502-reference.md
+tests/
+  unit/                 # hand-written CPU unit tests + the flat-64KB-RAM test harness
+  dormann/              # runs the fetched Dormann suite against the CPU core
+  vendor/               # gitignored, populated by scripts/fetch_dormann_tests.sh only
 roms/                   # gitignored, populated by stage_roms.sh only
 ```
 
-No `Makefile`/build system is checked in yet — Phase 1 is where the
-first code (and its build system) actually gets written. See
-`docs/roadmap.md`'s Phase 0/1 for what that first session should decide
-and build.
+Build system: a plain Makefile (see the README and
+`docs/testing-strategy.md` for the exact `make` targets) -- decided in
+Phase 1 once CMake turned out not to be installed on the machine this
+was first built on; either was acceptable per the roadmap.
 
 ## Status
 
-- [x] **Phase 0** — repo scaffold + full docs (this pass). No C code yet.
+- [x] **Phase 0** — repo scaffold + full docs.
+- [x] **Phase 1** — 6502 CPU core: all legal opcodes/addressing modes,
+      cycle-stepped (`cpu6502_cycle()`, one PHI2 cycle at a time),
+      passes both the hand-written unit tests and the full Dormann
+      suite. Build system: a plain Makefile. See `src/cpu/`, `tests/`.
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

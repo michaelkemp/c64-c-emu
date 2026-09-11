@@ -9,11 +9,9 @@ real commercial software, keeping up with the real PAL clock rate.
 
 ## Status
 
-**Documentation and planning phase — no C code yet.** Every design
-decision needed to start implementing is written down in `docs/`; read
-`CLAUDE.md` first, then `docs/roadmap.md` for the phase-by-phase build
-order. This section will be replaced with real build/run instructions
-as each phase lands — see `docs/roadmap.md`'s Phase 1 for what's next.
+**Phase 1 (6502 CPU core) is done; Phase 2 (memory map/PLA) is next.**
+Read `CLAUDE.md` first, then `docs/roadmap.md` for the phase-by-phase
+build order.
 
 ## Why this project exists
 
@@ -61,11 +59,27 @@ license discipline section for the full reasoning.
 
 ## Building and running
 
-Not yet applicable — no build system exists yet. Phase 1 (see
-`docs/roadmap.md`) is where the build system gets chosen and this
-section gets filled in with real commands. **Keep this section current
-as each phase lands** — a README describing an aspiration instead of
-what actually works is worse than a short "not built yet" note.
+Build system: a plain Makefile (gcc/clang, no other dependency). There's
+no full machine to run yet — Phase 1 only built the 6502 CPU core and
+its tests.
+
+```sh
+make            # builds and runs the hand-written CPU unit tests
+make unit-test  # same
+
+make fetch-dormann  # fetches Klaus Dormann's 6502 functional test suite
+                    # on demand (GPLv3, never vendored into this repo)
+make dormann        # builds and runs it against the CPU core
+```
+
+Both currently pass: the hand-written unit tests (70 assertions) and the
+full Dormann suite (traps at its documented success address, `$3469`,
+after 96,241,367 cycles). See `docs/6502-reference.md` and
+`docs/testing-strategy.md` for details.
+
+**Keep this section current as each phase lands** — a README describing
+an aspiration instead of what actually works is worse than a short "not
+built yet" note.
 
 ## License
 

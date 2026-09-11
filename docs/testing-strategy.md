@@ -88,13 +88,24 @@ state directly, especially for input/timing-sensitive subsystems.
 
 ## Build/test tooling
 
-Decided in Phase 1 alongside the build system itself (see
-`docs/roadmap.md`) — whichever you choose (CMake+CTest, or a Makefile
-plus a lightweight hand-rolled assert-based test runner with zero extra
-dependencies), keep the three tiers above runnable as separate targets
-so a contributor can run "the free tier" (unit tests + Dormann suite,
-no ROMs needed) separately from "the real-ROM integration tier" (needs
-`scripts/stage_roms.sh` run first with the user's own legitimately-owned
-ROMs). Update this section with the actual commands once that decision
-is made — don't leave it describing an aspiration once real tooling
-exists.
+**Decided in Phase 1: a plain Makefile plus a lightweight, hand-rolled
+assert-based test runner (`tests/unit/testutil.h`) — zero third-party
+test-framework dependency.** CMake wasn't available on the machine this
+was first built on; the roadmap treats either as acceptable as long as
+it's written down.
+
+- `make unit-test` (or just `make`) — builds and runs the hand-written
+  CPU unit tests (`tests/unit/test_cpu.c`), no ROMs needed. This is
+  "the free tier": a fresh clone with nothing but the source and a C
+  compiler can run it.
+- `make fetch-dormann` — runs `scripts/fetch_dormann_tests.sh` (fetches
+  the GPLv3 Klaus Dormann suite on demand into gitignored
+  `tests/vendor/`, never vendored into this repo).
+- `make dormann` — builds `tests/dormann/run_dormann.c` against the CPU
+  core and runs the fetched suite's own prebuilt binary, checking that
+  it traps at the documented success address. Requires
+  `make fetch-dormann` first.
+- The real-ROM integration tier (tier 3 above) doesn't exist yet — it
+  lands starting Phase 2 once `scripts/stage_roms.sh` and a real memory
+  map exist. It'll get its own `make` target, clearly separate from the
+  two above, so the base suite keeps working with zero ROMs staged.
