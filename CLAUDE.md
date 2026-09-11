@@ -17,7 +17,10 @@ current status. Detail lives in [docs/](docs/); update both as decisions
 change. If you are an AI assistant picking this project up cold, **read
 every file in `docs/` before writing code** — they are written in
 build order and each one is a design spec for its phase, not background
-reading you can skip.
+reading you can skip. Read `docs/references-and-gotchas.md` right after
+the roadmap — it's the sharpest, most concrete "things that will bite
+you" doc and is easy to under-value next to the more architectural
+per-chip docs.
 
 ## Why C, and why scanline-accurate from the start
 
@@ -106,6 +109,8 @@ LICENSE
 .gitignore
 docs/
   roadmap.md            # phase-by-phase build plan -- start here
+  references-and-gotchas.md  # read this second -- primary-source links and
+                         # specific hard lessons sharper than the per-chip docs
   6502-reference.md     # 6502 ISA notes + the Dormann validation gate
   memory-map.md         # C64 memory map, PLA bank-switching, 6510 I/O port
   cia.md                # MOS 6526 CIA: ports, timers, TOD, ICR, keyboard/joystick

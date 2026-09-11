@@ -42,6 +42,9 @@ license discipline section for the full reasoning.
 - [`CLAUDE.md`](CLAUDE.md) — goals, key decisions, repo map, status.
 - [`docs/roadmap.md`](docs/roadmap.md) — the phase-by-phase build plan;
   start here.
+- [`docs/references-and-gotchas.md`](docs/references-and-gotchas.md) —
+  read this second: primary-source links (VIC-II article, datasheets,
+  format references) and specific, hard-won gotchas.
 - [`docs/6502-reference.md`](docs/6502-reference.md),
   [`docs/memory-map.md`](docs/memory-map.md),
   [`docs/cia.md`](docs/cia.md),
