@@ -1,0 +1,25 @@
+# ROMs and disk/cartridge images -- never vendored, staged locally only
+roms/
+disk-drive/
+*.d64
+*.crt
+*.bin
+*.rom
+
+# fetched-on-demand test suites -- never vendored
+tests/vendor/
+
+# build output (exact directories depend on the Phase 1 build-system choice)
+build/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.out
+compile_commands.json
+
+# editor/OS cruft
+.vscode/
+.idea/
+*.swp
+.DS_Store
