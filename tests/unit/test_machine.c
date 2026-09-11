@@ -158,6 +158,55 @@ static void test_cia2_irq_edge_triggers_nmi(void) {
 }
 
 /* ---------------------------------------------------------------- */
+/* NMI: the RESTORE key edge-triggers it too, independent of CIA2      */
+/* ---------------------------------------------------------------- */
+
+static void test_restore_key_edge_triggers_nmi(void) {
+    Machine m;
+    setup_ram_everywhere(&m);
+
+    m.mem.ram[0xFFFC] = 0x00;
+    m.mem.ram[0xFFFD] = 0xC0;
+    m.mem.ram[0xC000] = 0x4C;
+    m.mem.ram[0xC001] = 0x00;
+    m.mem.ram[0xC002] = 0xC0; /* JMP $C000 */
+    install_irq_counter_handler(&m, 0xFFFA); /* NMI vector */
+
+    machine_reset(&m);
+
+    for (int i = 0; i < 10; i++) {
+        machine_cycle(&m);
+    }
+    TEST_ASSERT_EQ_U8(m.mem.ram[0xC200], 0); /* nothing yet -- key not pressed */
+
+    machine_set_restore_key(&m, true);
+    for (int i = 0; i < 200; i++) {
+        machine_cycle(&m);
+    }
+    TEST_ASSERT_EQ_U8(m.mem.ram[0xC200], 1); /* fired exactly once on the press edge */
+
+    /* Held down, no CIA2 involvement at all -- confirm it does NOT
+     * fire again without a fresh press edge (real hardware: RESTORE
+     * wires into the NMI line directly, same edge-only semantics as
+     * CIA2's own NMI source). */
+    for (int i = 0; i < 1000; i++) {
+        machine_cycle(&m);
+    }
+    TEST_ASSERT_EQ_U8(m.mem.ram[0xC200], 1);
+
+    /* Release and press again -- a fresh edge fires again. */
+    machine_set_restore_key(&m, false);
+    for (int i = 0; i < 10; i++) {
+        machine_cycle(&m);
+    }
+    machine_set_restore_key(&m, true);
+    for (int i = 0; i < 200; i++) {
+        machine_cycle(&m);
+    }
+    TEST_ASSERT_EQ_U8(m.mem.ram[0xC200], 2);
+}
+
+/* ---------------------------------------------------------------- */
 /* IRQ: the VIC-II's own raster interrupt ORs into the same line       */
 /* ---------------------------------------------------------------- */
 
@@ -266,6 +315,7 @@ int main(void) {
     test_cia1_timer_irq_interrupts_running_cpu();
     test_cia1_timer_irq_with_real_handler_fires_at_expected_period();
     test_cia2_irq_edge_triggers_nmi();
+    test_restore_key_edge_triggers_nmi();
     test_vic_raster_irq_interrupts_running_cpu();
 
     test_vic_bank_follows_cia2_port_a();

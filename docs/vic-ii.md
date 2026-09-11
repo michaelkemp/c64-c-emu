@@ -333,3 +333,51 @@ see Known Gaps).
   A every cycle (`tests/unit/test_machine.c`'s
   `test_vic_bank_follows_cia2_port_a` and
   `test_vic_raster_irq_interrupts_running_cpu` cover this).
+- **Found and fixed in Phase 7, via the first real live SDL2 display**
+  (see `docs/peripherals.md`): the border flip-flops' on/off state was
+  being used as the *only* thing controlling whether a pixel got border
+  color, with no separate notion of horizontal/vertical blanking at
+  all — so the compositor painted border color continuously through the
+  real hardware's genuine sync/blanking intervals too, which a real
+  monitor shows as pure black (no picture), not border color. Every
+  earlier verification of this fact was necessarily blind to it: all of
+  Phase 4/6's checks compare specific screen-memory-driven pixel
+  positions or border-color-register values, never "does the whole
+  picture look like a real photo of a C64." It took someone actually
+  looking at a live rendered frame (Phase 7's own stated verification
+  target) to notice the border looked wrong at all.
+
+  Fixed by reading section 3.4 of Bauer's article directly (raw
+  `.txt`, `docs/sources.md`) for the 6569's own documented blanking
+  geometry — a real primary-sourced fact, not a guessed crop margin:
+  first/last vblank line 300/15 (so visible lines run 16-299, 284
+  lines, exactly matching the article's own separately-stated "Visible
+  lines" count for the 6569); first/last visible X coordinate 480/380
+  (wrapping through the X=503/0 boundary, since X coordinates are
+  numbered from the raster-IRQ reference point at $194/404, not from
+  the start of the picture). These are now `VIC_FIRST_VISIBLE_X`/
+  `VIC_LAST_VISIBLE_X`/`VIC_FIRST_VISIBLE_LINE`/`VIC_LAST_VISIBLE_LINE`
+  in `src/c64/vic_ii.h`, genuinely distinct from the border comparator
+  values (`border_left`/`border_right`/`border_top`/`border_bottom` in
+  `src/c64/vic_ii.c`) — the border flip-flops keep painting border
+  color straight through blanking on real hardware too; it's the video
+  *signal* that's separately forced off there, which is what's now
+  modeled. `vic_ii_cycle()` forces framebuffer pixels outside this
+  window to black (index 0) once each line is committed, overriding
+  whatever border/graphics color compositing already computed — see
+  `tests/unit/test_vic_ii.c`'s
+  `test_vertical_blanking_forces_black_regardless_of_border_color` and
+  `test_horizontal_blanking_forces_black_regardless_of_border_color`.
+  No existing test regressed: every prior check reads pixels that are
+  already inside the visible window.
+
+  This is a genuine, disclosed VIC-II *chip-timing* fix (not just a
+  frontend cosmetic crop) — `tools/demos/`'s raw PPM dumps and every
+  internal test still see the full, un-cropped, native-X-coordinate
+  504×312 array (now correctly black in the blanking region rather
+  than border-colored); `src/frontend/sdl_frontend.c`'s
+  `render_frame()` separately rotates/crops that same array into a
+  contiguous, non-wrapped 405×284 picture for live display, since a
+  real monitor never shows the array's own internal wraparound seam —
+  see `docs/peripherals.md`'s Screen section for that display-only
+  step.

@@ -188,6 +188,47 @@ static void test_raster_split_border_color_mid_frame(void) {
 }
 
 /* ---------------------------------------------------------------- */
+/* Blanking: the real video signal goes black, not border color,     */
+/* during horizontal/vertical sync -- a real, disclosed gap surfaced */
+/* by Phase 7's live SDL2 display (see docs/vic-ii.md), fixed here.  */
+/* ---------------------------------------------------------------- */
+
+static void test_vertical_blanking_forces_black_regardless_of_border_color(void) {
+    Harness h;
+    setup(&h);
+    vic_ii_reg_write(&h.vic, REG_D020, 14); /* a non-black border color */
+
+    /* Line 5 is inside the vblank window (VIC_FIRST_VISIBLE_LINE=16) --
+     * the border flip-flop is still "on" here (well before the display
+     * window even starts), so without the blanking override this would
+     * read back as the border color, not black. */
+    run_to_line_cycle1(&h.vic, 5);
+    run_cycles(&h.vic, 63);
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[5][100], 0);
+
+    /* A visible line's own border pixel is unaffected. */
+    run_to_line_cycle1(&h.vic, 50);
+    run_cycles(&h.vic, 63);
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[50][100], 14);
+}
+
+static void test_horizontal_blanking_forces_black_regardless_of_border_color(void) {
+    Harness h;
+    setup(&h);
+    vic_ii_reg_write(&h.vic, REG_D020, 14);
+
+    run_to_line_cycle1(&h.vic, 100); /* a visible line */
+    run_cycles(&h.vic, 63);
+
+    /* x=10 is in the permanent left border -- visible, real border
+     * color. x=420 falls inside horizontal blanking (VIC_LAST_VISIBLE_X
+     * = 380, VIC_FIRST_VISIBLE_X = 480) -- forced black even though the
+     * border flip-flop is "on" there too. */
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[100][10], 14);
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[100][420], 0);
+}
+
+/* ---------------------------------------------------------------- */
 /* Raster IRQ + $D019 write-1-to-clear semantics                     */
 /* ---------------------------------------------------------------- */
 
@@ -343,6 +384,9 @@ int main(void) {
 
     test_upper_border_before_display_window();
     test_raster_split_border_color_mid_frame();
+
+    test_vertical_blanking_forces_black_regardless_of_border_color();
+    test_horizontal_blanking_forces_black_regardless_of_border_color();
 
     test_raster_irq_fires_at_compare_line();
     test_d019_write_one_clears_not_read();

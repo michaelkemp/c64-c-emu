@@ -37,6 +37,7 @@ void machine_init(Machine *m) {
     c64memory_attach_cia2(&m->mem, &m->cia2);
     c64memory_attach_sid(&m->mem, &m->sid);
 
+    m->restore_key_down = false;
     m->total_cycles = 0;
 }
 
@@ -83,14 +84,19 @@ void machine_cycle(Machine *m) {
     sid_tick(&m->sid, 1);
 
     /* IRQ is level-triggered: OR of CIA1 and the VIC-II raster
-     * interrupt (docs/machine.md). NMI is edge-triggered, from CIA2;
-     * the CPU core's own nmi_line/nmi_pending logic (src/cpu/
-     * cpu6502.c) does the actual edge-detection -- this just supplies
-     * the current level every cycle, same as any other line. */
+     * interrupt (docs/machine.md). NMI is edge-triggered, from CIA2 and
+     * the RESTORE key (docs/machine.md, docs/cia.md); the CPU core's
+     * own nmi_line/nmi_pending logic (src/cpu/cpu6502.c) does the
+     * actual edge-detection -- this just supplies the current level
+     * every cycle, same as any other line. */
     cpu6502_set_irq_line(&m->cpu, cia_irq_asserted(&m->cia1) || vic_ii_irq_asserted(&m->vic));
-    cpu6502_set_nmi_line(&m->cpu, cia_irq_asserted(&m->cia2));
+    cpu6502_set_nmi_line(&m->cpu, cia_irq_asserted(&m->cia2) || m->restore_key_down);
 
     m->total_cycles++;
+}
+
+void machine_set_restore_key(Machine *m, bool down) {
+    m->restore_key_down = down;
 }
 
 uint64_t machine_target_cycles_for_elapsed(double elapsed_seconds) {

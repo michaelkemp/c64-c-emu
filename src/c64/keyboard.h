@@ -14,11 +14,12 @@
  * IMPORTANT: this table's specific key-to-position layout is sourced
  * from http://sta.c64.org/cbm64kbdlay.html (see docs/sources.md) --
  * docs/cia.md explicitly flags this as one of (at least) two
- * commonly-cited community layouts, and it has NOT been independently
- * verified empirically against real KERNAL/hardware (that verification
- * needs real staged ROMs, which this project doesn't have -- see
- * docs/memory-map.md's Phase 2 status). Treat this as "sourced, not
- * yet cross-checked" until that verification happens.
+ * commonly-cited community layouts. Empirically cross-checked in
+ * Phase 7 against the real KERNAL for a representative sample of 8
+ * positions spanning 6 of the matrix's 8 rows/columns (see
+ * tests/integration/test_keyboard_input.c and docs/cia.md's
+ * Verification target) -- confirmed correct, not an exhaustive
+ * all-64 sweep.
  *
  * The RESTORE key is deliberately not part of this matrix -- on real
  * hardware it isn't a matrix position at all, it wires directly into

@@ -38,6 +38,28 @@
 #define VIC_FIRST_LINE_X 404u /* the X coordinate at the start of cycle 1, per the article's own reference point */
 #define VIC_X_MODULUS (VIC_CYCLES_PER_LINE * 8u) /* 504 -- X coordinates run 0-503 on the 6569 */
 
+/* The real 6569's horizontal/vertical blanking geometry -- section 3.4's
+ * own table, read directly (docs/sources.md): "First visible X coo."
+ * 480 ($1e0), "Last visible X coo." 380 ($17c) (the visible X range
+ * WRAPS through the X=503/0 boundary, since X coordinates are numbered
+ * from the raster-IRQ reference point, not from the start of blanking);
+ * first/last vblank line 300/15, meaning visible lines run 16-299
+ * inclusive (284 lines, matching the article's own stated "Visible
+ * lines" count for the 6569 exactly). Genuinely different from the
+ * border comparator values above (border_left/right/top/bottom in
+ * vic_ii.c) -- the border flip-flops don't turn off during blanking,
+ * so the *border color* is what the flip-flop logic would paint
+ * continuously from the right border through blanking into the next
+ * line's left border, but the real video *signal* is forced off
+ * (blanked, not border-colored) for this specific, separate window.
+ * vic_ii_cycle() forces framebuffer pixels in this window to black
+ * (index 0) rather than whatever the border/graphics logic computed --
+ * see the "blanking" comment where framebuffer[] is committed. */
+#define VIC_FIRST_VISIBLE_X 480u
+#define VIC_LAST_VISIBLE_X 380u
+#define VIC_FIRST_VISIBLE_LINE 16u
+#define VIC_LAST_VISIBLE_LINE 299u
+
 /* $D019/$D01A interrupt bits */
 #define VIC_IRQ_RST 0x01u
 #define VIC_IRQ_MBC 0x02u

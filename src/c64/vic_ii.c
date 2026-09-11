@@ -600,6 +600,25 @@ bool vic_ii_cycle(VicII *vic) {
      * sprite compositing pass and framebuffer copy at the line's end. */
     if (vic->cycle == VIC_CYCLES_PER_LINE) {
         composite_sprites_for_line(vic);
+
+        /* Blanking: the real video signal is forced off (no picture at
+         * all, not border color) during horizontal/vertical sync and
+         * blanking -- a genuinely separate window from the border
+         * flip-flops' own on/off state, which keep painting border
+         * color straight through this window (see vic_ii.h's own
+         * comment on VIC_FIRST_VISIBLE_X and friends for why these two
+         * concepts are different). Applied here, once per line, as an
+         * override on top of whatever border/graphics color compositing
+         * already computed into line_color[]. */
+        bool line_is_vblank = vic->raster_line < VIC_FIRST_VISIBLE_LINE || vic->raster_line > VIC_LAST_VISIBLE_LINE;
+        if (line_is_vblank) {
+            memset(vic->line_color, 0, sizeof(vic->line_color));
+        } else {
+            for (uint16_t x = (uint16_t)(VIC_LAST_VISIBLE_X + 1u); x < VIC_FIRST_VISIBLE_X; x++) {
+                vic->line_color[x] = 0;
+            }
+        }
+
         memcpy(vic->framebuffer[vic->raster_line], vic->line_color, sizeof(vic->line_color));
 
         vic->cycle = 1;

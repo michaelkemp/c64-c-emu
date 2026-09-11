@@ -23,6 +23,10 @@
 #                      (scripts/stage_roms.sh) through a real reset --
 #                      see tools/demos/real_rom_boot_dump.c. Never commit
 #                      its output; it renders real ROM content.
+#   make run         - Phase 7: the real SDL2 frontend (screen, audio,
+#                      keyboard, joystick) -- see src/frontend/
+#                      sdl_frontend.c and docs/peripherals.md. Needs
+#                      libsdl2-dev and your own staged real ROMs.
 #   make clean       - removes build/
 
 CC := gcc
@@ -52,7 +56,7 @@ DORMANN_TEST_BINARY := $(DORMANN_VENDOR_DIR)/bin_files/6502_functional_test.bin
 INTEGRATION_MAIN_SRCS := $(wildcard tests/integration/test_*.c)
 INTEGRATION_BINS := $(patsubst tests/integration/%.c,$(BUILD_DIR)/integration/%,$(INTEGRATION_MAIN_SRCS))
 
-.PHONY: all test unit-test fetch-dormann dormann integration demo demo-real-rom clean
+.PHONY: all test unit-test fetch-dormann dormann integration demo demo-real-rom run clean
 
 all: unit-test
 
@@ -128,6 +132,27 @@ demo-real-rom: $(REAL_ROM_DEMO_BIN)
 	@echo "Wrote $(REAL_ROM_OUT_PPM) -- view directly, or convert to PNG with:"
 	@echo "  convert $(REAL_ROM_OUT_PPM) $(BUILD_DIR)/real_boot.png"
 	@echo "(Never commit this output -- it renders real, copyrighted KERNAL/BASIC ROM content. See CLAUDE.md's license discipline.)"
+
+
+# Phase 7: the real SDL2 frontend. Kept as its own target so no other
+# tier (unit/dormann/integration/demo) ever needs SDL2 -- see
+# docs/peripherals.md's "core has zero SDL dependency" boundary.
+SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
+SDL_LIBS := $(shell pkg-config --libs sdl2 2>/dev/null)
+FRONTEND_SRC := src/frontend/sdl_frontend.c
+FRONTEND_BIN := $(BUILD_DIR)/c64
+
+$(FRONTEND_BIN): $(FRONTEND_SRC) $(CORE_SRCS) $(CORE_HDRS) | $(BUILD_DIR)
+	@pkg-config --exists sdl2 2>/dev/null || \
+		{ echo "SDL2 dev headers not found (pkg-config sdl2) -- install libsdl2-dev first." >&2; exit 1; }
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) $(FRONTEND_SRC) $(CORE_SRCS) -o $@ $(LDLIBS) $(SDL_LIBS)
+
+run: $(FRONTEND_BIN)
+	@if [ ! -f roms/c64/kernal.rom ] || [ ! -f roms/c64/basic.rom ] || [ ! -f roms/c64/chargen.rom ]; then \
+		echo "Real ROMs not staged under roms/c64/ -- run scripts/stage_roms.sh with your own legally-acquired dumps first." >&2; \
+		exit 1; \
+	fi
+	./$(FRONTEND_BIN) roms/c64/kernal.rom roms/c64/basic.rom roms/c64/chargen.rom
 
 clean:
 	rm -rf $(BUILD_DIR)

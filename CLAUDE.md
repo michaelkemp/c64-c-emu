@@ -183,14 +183,14 @@ was first built on; either was acceptable per the roadmap.
       and confirms the actual "READY." prompt appears in screen memory
       after a real cold-start. See `docs/memory-map.md`'s status
       section.
-- [~] **Phase 3** — MOS 6526 CIA (×2) + keyboard matrix + joystick:
+- [x] **Phase 3** — MOS 6526 CIA (×2) + keyboard matrix + joystick:
       done and unit-tested (74 assertions, all synthetic), sourced
       directly from the primary datasheet — see `src/c64/cia.c`,
       `src/c64/keyboard.c`, `docs/cia.md`, `docs/sources.md`. Wired into
       the bus/CPU in Phase 6. The keyboard-matrix-layout empirical
-      cross-check (driving each of the 64 matrix positions through the
-      real KERNAL's own character-input routine) is now unblocked but
-      still open — see `docs/cia.md`'s status section.
+      cross-check (driving matrix positions through the real KERNAL's
+      own character-input routine) is now genuinely done too, in
+      Phase 7 — see `docs/cia.md`'s status section.
 - [x] **Phase 4** — VIC-II (PAL/6569): done and unit-tested (24
       assertions, all synthetic), sourced directly from Christian
       Bauer's primary cycle-by-cycle article — see `src/c64/vic_ii.c`,
@@ -199,8 +199,8 @@ was first built on; either was acceptable per the roadmap.
       DMA, raster IRQ, both border flip-flops) with per-pixel
       compositing — see `src/c64/vic_ii.h`'s header comment for the
       exact granularity decision and what it does/doesn't reproduce.
-      Not wired into the bus/CPU/CIA2 bank-select yet (deliberately
-      deferred to Phase 6). **Visually confirmed against real ROMs**:
+      Wired into the bus/CPU/CIA2 bank-select in Phase 6. **Visually
+      confirmed against real ROMs**:
       `c64memory_attach_vic()` lets `C64Memory` route `$D000-$D3FF` to a
       real `VicII`, and `make demo` / `make demo-real-rom`
       (`tools/demos/`) render, respectively, a synthetic "HELLO C64"
@@ -217,7 +217,8 @@ was first built on; either was acceptable per the roadmap.
       documented-approximation filter (not reSID's transistor-level
       model). Verified against the datasheet's own Appendix A frequency
       table (440Hz test, landed exactly on target). Wired into the bus
-      in Phase 6; still no actual audio output device (Phase 7).
+      in Phase 6; a real audio output device (`SDL_QueueAudio`) exists
+      as of Phase 7.
 - [x] **Phase 6** — The real machine: CPU + `C64Memory` + both CIAs +
       VIC-II + SID driven together by one true per-cycle interleaved
       loop, with real IRQ (level, OR of both CIAs + VIC-II raster) and
@@ -235,6 +236,31 @@ was first built on; either was acceptable per the roadmap.
       real jiffy rate is a fixed ~60Hz (16421-cycle Timer A reload)
       unrelated to the PAL video rate — see `docs/cia.md`,
       `docs/sources.md`.
+- [x] **Phase 7** — SDL2 peripherals: screen, audio, keyboard, joystick
+      — see `src/frontend/sdl_frontend.c`, `docs/peripherals.md`. Real
+      live window (SDL2 texture, real PAL-rate-paced), real audio
+      (`SDL_QueueAudio`, doubling as the real-time pacing master clock
+      per `docs/machine.md`'s strategy 2), real keyboard mapping, and a
+      numpad joystick fallback. **Found and fixed a genuine,
+      previously-undisclosed VIC-II gap**: actually looking at a live
+      rendered frame for the first time revealed the border flip-flops'
+      state was being used as the only thing controlling border-color
+      painting, with no separate blanking concept — so real hardware's
+      horizontal/vertical sync/blanking intervals (which show pure
+      black on a real monitor) were being painted as border color
+      instead, making the border look oversized/wrapped. Fixed directly
+      from Bauer's article's own blanking geometry table (section 3.4)
+      — see `docs/vic-ii.md`'s "Known gaps." **Also closed Phase 3's
+      long-open keyboard-matrix-layout empirical cross-check for real**:
+      `tests/integration/test_keyboard_input.c` types a known string
+      through the real `KeyboardMatrix -> CIA1 -> IRQ-driven KERNAL
+      scan` and confirms the exact expected characters land in real
+      screen memory — see `docs/cia.md`. RESTORE-key NMI
+      (`machine_set_restore_key()`) was added to `src/c64/machine.c` to
+      make this phase's real keyboard pipeline complete. Live-verified
+      end-to-end (screen + audio format/activity) directly by the user
+      via screenshot; a handful of sub-checks remain manual/future — see
+      `docs/peripherals.md`'s "Verification target"/"Known gaps."
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

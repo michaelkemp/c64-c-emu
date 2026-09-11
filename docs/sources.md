@@ -167,3 +167,30 @@ roughly the phase order it was needed.
     confirmed — see `docs/machine.md`'s IRQ/NMI section for how this
     same real-ROM run also caught a genuine Phase 1 CPU bug that had
     never manifested in any earlier phase's own synthetic tests.
+
+## Phase 7 — SDL2 peripherals
+
+- **Christian Bauer's cycle-by-cycle VIC-II article, re-read (section
+  3.4)** — https://www.cebix.net/VIC-Article.txt, the same primary
+  source already used for Phase 4 (see above), fetched again as raw
+  `.txt` rather than trusted from memory, per this project's own
+  methodology, specifically for its horizontal/vertical blanking
+  geometry table. This section was never actually needed until Phase
+  7's live SDL2 display made an undisclosed VIC-II gap visible for the
+  first time (see `docs/vic-ii.md`'s "Known gaps" entry on this):
+  Phase 4/6 only ever checked specific pixel/register values
+  programmatically, never "does a whole rendered frame look like a
+  real photo of a C64" — nobody had looked at a live picture before.
+  Settled directly from the article's own table (not guessed): for the
+  6569 (PAL), first/last vblank line 300/15 (-> visible lines 16-299,
+  284 lines total, exactly matching the article's own independently-
+  stated "Visible lines" count); first/last visible X coordinate
+  480/380 (wrapping through the X=503/0 boundary, since X coordinates
+  are numbered from the raster-IRQ reference point at X=404, not from
+  the start of the picture — matching this project's own pre-existing
+  `VIC_FIRST_LINE_X=404` constant exactly, an independent cross-check
+  that the article was being read correctly). Used to add
+  `VIC_FIRST_VISIBLE_X`/`VIC_LAST_VISIBLE_X`/`VIC_FIRST_VISIBLE_LINE`/
+  `VIC_LAST_VISIBLE_LINE` to `src/c64/vic_ii.h` and force true blanking
+  (black, not border color) outside that window in `vic_ii_cycle()` —
+  see `docs/vic-ii.md`.

@@ -183,16 +183,17 @@ advances at the correct real-world rate once BASIC reaches its
 keyboard-wait loop, and a synthetic keypress on each of the 64 matrix
 positions produces the real KERNAL's own correct character back.
 
-**Jiffy-clock half done** (Phase 6, see above): rate confirmed against
-the real KERNAL. **Keyboard-matrix-layout empirical cross-check still
-open** — Phase 6 wired `KeyboardMatrix`/`Joystick` into CIA1 for real
-(`tests/unit/test_machine.c`'s `test_keyboard_matrix_wiring_through_
-cia1` confirms the *wiring* — a synthetic key press reaches CIA1 Port
-B correctly through `Machine`), which unblocks this check but doesn't
-itself perform it: driving each of the 64 matrix positions through the
-real KERNAL's own character-input routine and confirming the reported
-character is still open, deliberately deferred rather than done as a
-side effect of Phase 6.
+**Both done.** Jiffy-clock rate confirmed against the real KERNAL in
+Phase 6, see above. The keyboard-matrix-layout empirical cross-check
+is now genuinely done too, in Phase 7 (`docs/peripherals.md`):
+`tests/integration/test_keyboard_input.c` types a known 8-key string
+through the real `KeyboardMatrix -> CIA1 -> IRQ-driven KERNAL scan` and
+confirms the real KERNAL's own screen memory shows the exact expected
+characters back — a representative sample across 6 of the matrix's 8
+rows and columns (not an exhaustive all-64 sweep), but genuine,
+primary-hardware-verified confirmation that `src/c64/keyboard.h`'s
+community-sourced layout table (`http://sta.c64.org/cbm64kbdlay.html`)
+is actually correct, not just plausible.
 
 ## Implementation status (Phase 3, done)
 
@@ -217,9 +218,8 @@ lines, via `src/c64/machine.c`'s `machine_cycle()` — see
 `docs/machine.md`. Both CIA1 keyboard/joystick wiring and CIA2's Port A
 → VIC-II bank selection are covered by `tests/unit/test_machine.c`.
 
-**Still open, blocked on the keyboard-matrix-layout empirical
-cross-check itself** (now unblocked by the above, not yet performed):
-see this doc's own Verification target below.
+**Both closed as of Phase 7** — see this doc's own Verification target
+above.
 
 ## Known gaps to disclose as you build
 

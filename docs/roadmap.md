@@ -243,25 +243,41 @@ Owes: `docs/machine.md` (already written this pass).
       `$A0`-`$A2` byte order, and the real ~60Hz/16421-cycle Timer A
       reload) — see `docs/cia.md` and `docs/sources.md`.
 
-## Phase 7 — Peripherals (SDL2): screen, keyboard, audio, joystick
+## Phase 7 — Peripherals (SDL2): screen, keyboard, audio, joystick (done)
 
 Owes: `docs/peripherals.md` (already written this pass).
 
-- [ ] Screen: blit `VicII`'s per-frame (or per-scanline, if you want to
+- [x] Screen: blit `VicII`'s per-frame (or per-scanline, if you want to
       watch it draw live) pixel buffer to an SDL2 window/texture, paced
       to the real PAL rate (≈50.125Hz, not a hardcoded 50 — see
       `docs/peripherals.md` for why the exact rate matters).
-- [ ] Keyboard: SDL2 key events mapped to the CIA keyboard matrix from
-      Phase 3.
-- [ ] Audio: SID samples fed to an SDL2 audio callback (pull-based, not
+      `src/frontend/sdl_frontend.c`. This is also what surfaced and fixed
+      a genuine, previously-undisclosed VIC-II blanking-vs-border gap —
+      see `docs/vic-ii.md`'s "Known gaps."
+- [x] Keyboard: SDL2 key events mapped to the CIA keyboard matrix from
+      Phase 3. Also closed Phase 3's long-open keyboard-matrix-layout
+      empirical cross-check for real: `tests/integration/
+      test_keyboard_input.c` — see `docs/cia.md`/`docs/peripherals.md`.
+- [x] Audio: SID samples fed to an SDL2 audio callback (pull-based, not
       push — see `docs/peripherals.md` for why this matters for pacing
-      and for avoiding audible glitches).
-- [ ] Joystick: SDL2 joystick/gamepad API, or a keyboard-key fallback
+      and for avoiding audible glitches). Used `SDL_QueueAudio`
+      (queue-based, not a callback) — see `docs/peripherals.md`'s
+      "Known gaps" for why that still counts as pull-based.
+- [x] Joystick: SDL2 joystick/gamepad API, or a keyboard-key fallback
       (e.g. numpad), coupled to the joystick model from Phase 3.
-- [ ] Verification target: the real boot screen renders in a live
+      **Keyboard-fallback (numpad) only** — no real SDL2 joystick/
+      controller hardware support yet (no test hardware available; see
+      `docs/peripherals.md`'s "Known gaps").
+- [x] Verification target: the real boot screen renders in a live
       window, a typed `LOAD"$",8` + BASIC command round-trips through
       real keyboard events, and a test tone is audible at the correct
-      pitch.
+      pitch. **Partially done** — see `docs/peripherals.md`'s own
+      Verification target section for exactly what's confirmed
+      (screen + the KeyboardMatrix-level round-trip, both genuinely
+      verified) versus what's left as a manual/future check (the same
+      round-trip driven through actual SDL2 key events specifically,
+      and a test tone's pitch through the real audio pipeline
+      specifically).
 
 ## Phase 8 — Cartridge (`.crt`) support
 

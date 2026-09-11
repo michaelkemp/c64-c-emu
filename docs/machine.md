@@ -192,10 +192,17 @@ within a few cycles of interrupt-service latency.
   per-cycle vs. the coarser per-scanline shortcut). **True per-cycle.**
 - Which pacing strategy you built, and any measured headroom/deficit
   numbers from testing it with real rendering + audio both active.
-  **Host-timer strategy (1)**; no rendering/audio combined-cost
-  measurement yet since Phase 7 doesn't exist.
-- The RESTORE key isn't modeled (no keyboard input pipeline exists
-  yet — Phase 7's job) — NMI-via-CIA2 itself is real and tested, just
-  not this second real hardware NMI source.
+  **Host-timer strategy (1)** here; Phase 7's real `sdl_frontend.c`
+  actually uses strategy 2 (audio as master clock) instead once a real
+  audio device exists — see `docs/peripherals.md`'s "Real-time pacing"
+  discussion there. Rendering measured well under the audio pacing
+  budget in Phase 7 (~20% CPU, not busy-waiting a whole core).
+- ~~The RESTORE key isn't modeled~~ **Done in this phase**:
+  `machine_set_restore_key()` (added once Phase 7's real keyboard
+  pipeline made it matter) ORs a direct, edge-triggered NMI source into
+  the same line as CIA2's own, matching real hardware's own wiring
+  (RESTORE isn't a matrix position -- see `src/c64/keyboard.h`).
+  `tests/unit/test_machine.c`'s `test_restore_key_edge_triggers_nmi`
+  confirms it fires exactly once per press edge, independent of CIA2.
 - 1541/IEC bus cross-stepping (Phase 9b) isn't part of the
   interleaving loop yet, as expected at this stage.

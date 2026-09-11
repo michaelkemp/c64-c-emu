@@ -45,6 +45,13 @@ typedef struct Machine {
     Joystick joystick1; /* CIA1 Port B */
     Joystick joystick2; /* CIA1 Port A -- shares the port with keyboard column select */
 
+    /* RESTORE isn't a matrix position on real hardware (see
+     * src/c64/keyboard.h) -- it wires directly into CIA2's NMI path
+     * instead, so it lives here rather than in KeyboardMatrix. Set via
+     * machine_set_restore_key(); ORed into the real NMI line every
+     * cycle alongside CIA2's own IRQ output (see docs/machine.md). */
+    bool restore_key_down;
+
     uint64_t total_cycles;
 } Machine;
 
@@ -63,6 +70,12 @@ void machine_reset(Machine *m);
 /* Advances exactly one real PHI2 cycle -- the interleaving described in
  * docs/machine.md's "Cycle interleaving" section. */
 void machine_cycle(Machine *m);
+
+/* RESTORE key state -- see the Machine struct's own comment above. A
+ * frontend (Phase 7) should call this directly rather than routing
+ * RESTORE through keyboard_matrix_set_key(), since real hardware
+ * itself doesn't route it through the matrix either. */
+void machine_set_restore_key(Machine *m, bool down);
 
 static inline void machine_run_cycles(Machine *m, uint64_t cycles) {
     for (uint64_t i = 0; i < cycles; i++) {
