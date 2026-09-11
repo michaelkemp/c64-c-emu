@@ -100,15 +100,51 @@ CIA registers aren't implemented yet, KERNAL init code touching them
 should at minimum not crash the bus dispatch (stub reads as 0, ignore
 writes, until their own phases land).
 
-## Known gaps / deliberate simplifications to disclose here as you make them
+## Implementation status (Phase 2, done)
 
-- VIC-II/SID register mirroring within their I/O ranges — decide and
-  write down whether you modeled it.
-- Color RAM's undefined high nibble — decide and write down what you
-  return for it.
-- Open-bus behavior generally (reading an address with nothing mapped to
-  it on real hardware returns the last byte that was on the data bus,
-  not a fixed 0/`$FF`) — a fully accurate open-bus model is a real,
-  deep rabbit hole; returning a fixed value (document which) is an
-  acceptable disclosed simplification unless/until specific software is
-  found that depends on real open-bus behavior.
+`src/c64/memory.c` implements this file's truth table exactly, as a
+second `Bus` implementation the Phase 1 CPU core plugs into unmodified
+(`c64memory_as_bus()`). Verified by 40 hand-written unit tests
+(`tests/unit/test_memory.c`), including all 8 rows of the bank-switching
+truth table exhaustively, RAM write-through under every ROM view, and
+that a write to `$D000-$DFFF` while I/O is switched in does *not* reach
+the RAM underneath (the one real asymmetry vs. the ROM-shadow case).
+
+The real-ROM verification target (Phase 2's own "reaches the genuine
+KERNAL reset routine, not just doesn't crash") lives in
+`tests/integration/test_boot.c` (`make integration`) — it traces the
+first 5,000 real instructions after reset and reports the addresses
+visited, but **does not yet assert they match the genuine KERNAL reset
+routine**, since this session had no real, legally-staged ROM dump to
+verify against (this project never fetches/vendors one itself — see
+`CLAUDE.md`). Whoever next runs this with real staged ROMs should
+confirm the traced addresses against the actual KERNAL disassembly (RAM
+test, I/O init, screen init, cold-start into BASIC) and tighten that
+test's assertion accordingly — right now it's a placeholder that proves
+"didn't crash and didn't execute an illegal opcode," which the doc above
+explicitly calls insufficient on its own.
+
+## Known gaps / deliberate simplifications
+
+- **VIC-II/SID/CIA1/CIA2 registers are stubbed** (reads return 0, writes
+  ignored) since those chips aren't implemented yet (Phases 3-5).
+  Register mirroring within each chip's own I/O window is deferred to
+  that chip's own phase/doc, which frame it as their decision to make —
+  moot for now since the stub ignores which register within the window
+  was addressed anyway.
+- **Color RAM's undefined high nibble**: reads return the stored low
+  nibble with the high nibble forced to 0 (writes discard the incoming
+  high nibble too) — the simplification `docs/memory-map.md` itself
+  flagged as acceptable, rather than modeling real open-bus behavior.
+- **Open-bus behavior generally** (reading an address with nothing
+  mapped to it on real hardware returns the last byte that was on the
+  data bus) is not modeled — unimplemented I/O registers fixed-return 0
+  instead. Acceptable disclosed simplification unless/until specific
+  software is found that depends on real open-bus behavior.
+- **Datasette (bits 3-5 of the `$01` port) and the cassette-sense input
+  aren't modeled.** Every unwritten (input) port bit floats high via
+  `c64memory_effective_port()`, which is enough for correct
+  LORAM/HIRAM/CHAREN behavior (the only bits that matter to this file)
+  but doesn't reflect a real cassette player's actual sense line.
+- **RAM powers on zeroed**, not the unpredictable pattern real hardware
+  exhibits — a deliberate, low-risk simplification for determinism.

@@ -105,7 +105,9 @@ it's written down.
   core and runs the fetched suite's own prebuilt binary, checking that
   it traps at the documented success address. Requires
   `make fetch-dormann` first.
-- The real-ROM integration tier (tier 3 above) doesn't exist yet — it
-  lands starting Phase 2 once `scripts/stage_roms.sh` and a real memory
-  map exist. It'll get its own `make` target, clearly separate from the
-  two above, so the base suite keeps working with zero ROMs staged.
+- `make integration` — the real-ROM integration tier (tier 3), living in
+  `tests/integration/`, clearly separate from the two tiers above so the
+  base suite keeps working with zero ROMs staged. Each binary there
+  checks for its own required ROMs and prints `SKIP` (exit 0) rather
+  than failing the build if they aren't staged — see
+  `tests/integration/test_boot.c` for Phase 2's own target.

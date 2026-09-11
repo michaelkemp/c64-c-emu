@@ -133,9 +133,13 @@ src/
   cpu/
     cpu6502.h            # the 6502/6510 core's public interface (Phase 1)
     cpu6502.c            # cycle-stepped implementation -- see docs/6502-reference.md
+  c64/
+    memory.h             # C64Memory: the real PLA-driven address space (Phase 2)
+    memory.c             # implements docs/memory-map.md's truth table, as a Bus
 tests/
-  unit/                 # hand-written CPU unit tests + the flat-64KB-RAM test harness
+  unit/                 # hand-written unit tests (CPU + memory map), no ROMs needed
   dormann/              # runs the fetched Dormann suite against the CPU core
+  integration/          # real-ROM tier -- needs scripts/stage_roms.sh run first
   vendor/               # gitignored, populated by scripts/fetch_dormann_tests.sh only
 roms/                   # gitignored, populated by stage_roms.sh only
 ```
@@ -152,6 +156,13 @@ was first built on; either was acceptable per the roadmap.
       cycle-stepped (`cpu6502_cycle()`, one PHI2 cycle at a time),
       passes both the hand-written unit tests and the full Dormann
       suite. Build system: a plain Makefile. See `src/cpu/`, `tests/`.
+- [~] **Phase 2** — C64 memory map/PLA bank-switching/6510 I/O port:
+      done and unit-tested (all 8 truth-table rows, RAM write-through,
+      the I/O-vs-RAM write asymmetry). See `src/c64/memory.c`. The real-
+      ROM boot verification (`tests/integration/test_boot.c`) is only
+      partially done — no real ROM dump was available to verify against
+      in the session that built it; see that file's own comment and
+      `docs/memory-map.md`'s "Implementation status" section.
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

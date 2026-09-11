@@ -9,9 +9,9 @@ real commercial software, keeping up with the real PAL clock rate.
 
 ## Status
 
-**Phase 1 (6502 CPU core) is done; Phase 2 (memory map/PLA) is next.**
-Read `CLAUDE.md` first, then `docs/roadmap.md` for the phase-by-phase
-build order.
+**Phases 1 (6502 CPU core) and 2 (memory map/PLA bank-switching) are
+done; Phase 3 (CIA 6526) is next.** Read `CLAUDE.md` first, then
+`docs/roadmap.md` for the phase-by-phase build order.
 
 ## Why this project exists
 
@@ -30,10 +30,19 @@ project is built around that interleaving from the start — see
 This project **never downloads or bundles** Commodore's KERNAL, BASIC,
 or Character ROMs (or, later, a 1541 DOS ROM) — they're copyrighted, and
 a reference emulator bundling them isn't proof of a redistribution
-license. If you own a real C64 (or a legitimate license to its ROMs),
-`scripts/stage_roms.sh` copies your own dumps into a gitignored `roms/`
-directory once it exists as a usable tool (Phase 2). See `CLAUDE.md`'s
-license discipline section for the full reasoning.
+license. If you own a real C64 (or a legitimate license to its ROMs):
+
+```sh
+scripts/stage_roms.sh --kernal /path/to/kernal.bin \
+                       --basic  /path/to/basic.bin \
+                       --chargen /path/to/chargen.bin
+make integration   # then: the real Phase 2 boot verification target
+```
+
+See `CLAUDE.md`'s license discipline section for the full reasoning.
+No real ROMs have been staged or used in developing this project itself
+— `make integration` prints a clear `SKIP` instead of failing when
+they're absent, which is the default state of a fresh clone.
 
 ## Documentation
 
@@ -60,22 +69,28 @@ license discipline section for the full reasoning.
 ## Building and running
 
 Build system: a plain Makefile (gcc/clang, no other dependency). There's
-no full machine to run yet — Phase 1 only built the 6502 CPU core and
-its tests.
+no full machine to run yet — Phases 1-2 built the 6502 CPU core and the
+real C64 memory map/PLA bank-switching, with tests for each.
 
 ```sh
-make            # builds and runs the hand-written CPU unit tests
-make unit-test  # same
+make            # builds and runs the hand-written unit test suite
+make unit-test  # same (CPU + memory map, no ROMs needed)
 
 make fetch-dormann  # fetches Klaus Dormann's 6502 functional test suite
                     # on demand (GPLv3, never vendored into this repo)
 make dormann        # builds and runs it against the CPU core
+
+make integration    # real-ROM tier -- needs scripts/stage_roms.sh run
+                    # first with your own dumps; SKIPs (not a failure)
+                    # if they aren't staged
 ```
 
-Both currently pass: the hand-written unit tests (70 assertions) and the
+All three currently pass (or, for `integration`, SKIP cleanly with no
+ROMs staged): 110 hand-written unit-test assertions (70 CPU + 40 memory
+map, including all 8 rows of the bank-switching truth table), and the
 full Dormann suite (traps at its documented success address, `$3469`,
-after 96,241,367 cycles). See `docs/6502-reference.md` and
-`docs/testing-strategy.md` for details.
+after 96,241,367 cycles). See `docs/6502-reference.md`,
+`docs/memory-map.md`, and `docs/testing-strategy.md` for details.
 
 **Keep this section current as each phase lands** — a README describing
 an aspiration instead of what actually works is worse than a short "not

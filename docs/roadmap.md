@@ -67,23 +67,32 @@ before starting), `docs/testing-strategy.md`.
 
 Owes: `docs/memory-map.md` (already written this pass).
 
-- [ ] Implement the real C64 address space: RAM, the switchable
+- [x] Implement the real C64 address space: RAM, the switchable
       BASIC/KERNAL/Character ROM views, and I/O space, gated by the
       6510's `$00`/`$01` port (`LORAM`/`HIRAM`/`CHAREN`) exactly per the
-      truth table in `docs/memory-map.md`.
-- [ ] Model the 6510 I/O port as a memory-mapped device the bus
+      truth table in `docs/memory-map.md`. See `src/c64/memory.c`.
+- [x] Model the 6510 I/O port as a memory-mapped device the bus
       dispatches to at `$00`/`$01` — **do not modify the CPU core** to
-      know about banking; the whole point of Phase 1's clean separation
-      is that the CPU only ever calls `bus_read8`/`bus_write8` and has
-      no opinion about what's behind them.
-- [ ] `scripts/stage_roms.sh` stages the user's own legally-acquired
-      KERNAL/BASIC/Character ROM dumps into gitignored `roms/c64/`.
-- [ ] Verification target: with real staged ROMs, the CPU reaches the
-      genuine KERNAL reset vector and starts executing real ROM code —
-      confirm by tracing PC through a few thousand real instructions and
-      recognizing the KERNAL's own known reset-routine addresses/behavior
-      (see `docs/memory-map.md`'s verification section), not just "it
-      doesn't crash."
+      know about banking. Confirmed: `src/cpu/cpu6502.c` is untouched;
+      `C64Memory` is just another `Bus` implementation.
+- [x] `scripts/stage_roms.sh` stages the user's own legally-acquired
+      KERNAL/BASIC/Character ROM dumps into gitignored `roms/c64/`
+      (already existed from Phase 0; `c64memory_load_kernal/basic/
+      chargen()` now consume what it stages).
+- [~] Verification target: with real staged ROMs, the CPU reaches the
+      genuine KERNAL reset vector and starts executing real ROM code.
+      **Partially done**: `tests/integration/test_boot.c`
+      (`make integration`) loads real ROMs if staged, resets the CPU
+      through them, and traces 5,000 real instructions with no illegal
+      opcode — but no real ROM dump was available in the session that
+      built this, so it does **not yet** assert the traced addresses
+      match the genuine KERNAL reset routine (RAM test, I/O init, screen
+      init, cold-start into BASIC), which this checklist item itself
+      requires beyond "doesn't crash." Whoever next has real ROMs staged
+      should tighten that assertion. The exhaustive bank-switching
+      truth table itself (all 8 LORAM/HIRAM/CHAREN combinations) is
+      fully verified with synthetic ROM content in
+      `tests/unit/test_memory.c`, needing no real ROMs.
 
 ## Phase 3 — CIA 6526 (×2)
 
