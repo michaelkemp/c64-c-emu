@@ -36,7 +36,7 @@ symmetry between the two without checking a primary source, since a
 plausible-sounding paraphrase getting this backwards is a real, documented
 mistake other implementers have made.
 
-## Ultimax mode (`GAME=0`, `EXROM=1`) — optional follow-up
+## Ultimax mode (`GAME=0`, `EXROM=1`) — don't skip this one, see below
 
 A real, distinct hardware configuration some cartridges use: RAM is
 only genuinely available at `$0000-$0FFF`; `$1000-$7FFF` and
@@ -48,6 +48,25 @@ generic cartridge (not a write to hidden RAM underneath, unlike the
 non-Ultimax ROM-overlay case) — verify this specific asymmetry from a
 primary technical reference rather than assuming every ROM-shadowed
 region behaves the same way.
+
+**The realistic way this mode actually gets found is by mis-analyzing a
+real cartridge first, so budget for that.** A genuine, easy trap: seeing
+a 16KB ROM image and assuming it must be the "normal" 16K cartridge
+shape (ROML at `$8000` + ROMH at `$A000`, `GAME=1`/`EXROM=0`) *without*
+actually reading the `.crt` header's own `EXROM`/`GAME` fields — a real
+vintage diagnostic cartridge (the "Dead Test" cartridge, and its modern
+homebrew equivalent, DeadTest/DesTestMAX) is genuinely Ultimax-mode, and
+extracting/mapping it under the wrong assumed configuration produces
+something that looks *plausible* (it parses, it's the right size) but
+is silently wrong — wild jumps, garbage output, or a crash once real
+code runs, with a misleading trail back to "probably a rendering bug"
+rather than "wrong memory-map mode entirely." **The header's `EXROM`/
+`GAME` bytes are the actual source of truth for which mode a cartridge
+uses — never infer the mode from ROM size, load address, or any other
+external property.** If you have access to a real diagnostic cartridge
+like this to test against, it's a good concrete Phase 8 verification
+target precisely because it exercises the write-is-a-no-op / open-bus
+edges that a purely synthetic test might not think to cover.
 
 ## Autostart
 
@@ -73,4 +92,5 @@ synthetic fixtures this project generates itself.
 
 - Every non-generic/type-0 hardware type (bank-switching cartridges of
   all kinds) — explicitly out of scope until a specific need arises.
-- Ultimax mode, if deferred past the initial cut.
+- Ultimax mode, only if you deliberately deferred it — see above for why
+  that's a real, not just theoretical, gap worth closing early.

@@ -207,9 +207,15 @@ Owes: `docs/cartridge.md` (already written this pass).
       LORAM/HIRAM-gated logic, including the real ROML/ROMH asymmetry
       (verify the exact truth table from a primary technical reference
       before implementing — don't assume symmetry between the two).
-- [ ] Ultimax mode (`GAME=0`, `EXROM=1`) as a documented follow-up if a
-      real cartridge you're testing against needs it — not required for
-      the initial cut.
+- [ ] Ultimax mode (`GAME=0`, `EXROM=1`) — implement it in this same
+      pass rather than deferring it as a corner case. It's not rare in
+      practice (real diagnostic cartridges use it) and the realistic
+      way it gets found is by mis-mapping a real cartridge under the
+      wrong assumed configuration first, which produces a plausible-
+      looking but silently wrong result rather than an obvious error —
+      see `docs/cartridge.md`'s Ultimax section for the specific trap
+      (never infer the mode from ROM size/shape; always read the
+      header's actual `EXROM`/`GAME` bits).
 - [ ] Every other real `.crt` hardware type (100+ exist, most needing
       their own bank-switching register emulation) is out of scope;
       raise `UnsupportedCartridge`-equivalent with a specific reason
