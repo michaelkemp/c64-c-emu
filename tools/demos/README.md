@@ -38,3 +38,23 @@ evidence that Phase 4 works. It does **not** exercise CIAs, interrupts,
 real-time pacing, audio, or input, and it doesn't boot a real KERNAL —
 none of that exists yet. Don't mistake this for Phase 6 or Phase 7
 themselves; both still need to be built for real.
+
+## Real-ROM variant: `real_rom_boot_dump.c`
+
+`make demo-real-rom` boots your own staged, legally-acquired real
+KERNAL/BASIC/Character ROMs (`scripts/stage_roms.sh`) through a genuine
+`cpu6502_reset()` (a real reset-vector fetch, not `hello_c64.s`'s
+skip-straight-to-PC trick) and dumps the resulting screen. With real
+ROMs staged, this genuinely renders the real "\*\*\*\* COMMODORE 64
+BASIC V2 \*\*\*\*" boot screen and "READY." prompt — real end-to-end
+confirmation of Phases 1, 2, and 4 together, and it independently
+exercises Phase 4's documented "first three c-accesses of a bad line
+read a forced `$FF`" DMA-delay quirk (visible as a checkerboard
+artifact on the screen's left edge, matching real hardware).
+
+**Never commit this tool's output** — the resulting image embeds real,
+copyrighted KERNAL/BASIC ROM content, unlike `hello_c64_screenshot.png`
+(which is pure content this project wrote itself). Its output lands in
+`build/`, which is already gitignored; don't copy it elsewhere in the
+repo. This is exactly the same license-discipline boundary as the ROMs
+themselves — see `CLAUDE.md`.

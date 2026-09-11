@@ -13,12 +13,14 @@ real commercial software, keeping up with the real PAL clock rate.
 switching; the MOS 6526 CIA ×2, keyboard matrix, and joystick;
 PAL VIC-II; the MOS 6581 SID) — **Phase 6 (the real machine loop) is
 next.** Read `CLAUDE.md` first, then `docs/roadmap.md` for the phase-
-by-phase build order. Note: Phases 2-4 each have a real-ROM
-verification step blocked on the user staging their own ROM dumps (see
-`docs/memory-map.md`'s, `docs/cia.md`'s, and `docs/vic-ii.md`'s status
-sections), and none of the built chips are wired together into one
-running machine yet — that's Phase 6 (VIC-II is a partial exception:
-see `tools/demos/`).
+by-phase build order. Phases 2 and 4's real-ROM verification targets
+are genuinely done (see `docs/memory-map.md`'s and `docs/vic-ii.md`'s
+status sections) — Phase 3's keyboard-matrix empirical cross-check is
+still open since it needs Phase 6's CIA bus wiring first (see
+`docs/cia.md`'s status section). None of the built chips are wired
+together into one running machine yet — that's Phase 6 (VIC-II is a
+partial exception: see `tools/demos/`). Real ROMs are never staged,
+used, or committed by this repo itself — see "Getting the ROMs" below.
 
 ## Why this project exists
 
@@ -37,19 +39,25 @@ project is built around that interleaving from the start — see
 This project **never downloads or bundles** Commodore's KERNAL, BASIC,
 or Character ROMs (or, later, a 1541 DOS ROM) — they're copyrighted, and
 a reference emulator bundling them isn't proof of a redistribution
-license. If you own a real C64 (or a legitimate license to its ROMs):
+license. If you own a real C64 (or a legitimate license to its ROMs) —
+including, reasonably, using another emulator's (e.g. VICE's) locally-
+installed copy as your source file, for your own private local use, if
+you independently have the right to that ROM content:
 
 ```sh
 scripts/stage_roms.sh --kernal /path/to/kernal.bin \
                        --basic  /path/to/basic.bin \
                        --chargen /path/to/chargen.bin
-make integration   # then: the real Phase 2 boot verification target
+make integration      # the real Phase 2/4 boot verification targets
+make demo-real-rom    # renders the actual boot screen -- never commit its output
 ```
 
 See `CLAUDE.md`'s license discipline section for the full reasoning.
-No real ROMs have been staged or used in developing this project itself
-— `make integration` prints a clear `SKIP` instead of failing when
-they're absent, which is the default state of a fresh clone.
+This repo itself never stages, uses, or commits any ROM or ROM-derived
+output — `roms/` is gitignored and `make integration` prints a clear
+`SKIP` instead of failing when nothing is staged, which is the default
+state of a fresh clone. Whether/how *you* stage your own legitimately-
+owned ROMs locally is your own call to make.
 
 ## Documentation
 
@@ -102,6 +110,10 @@ make demo           # ad-hoc visual smoke test (needs ca65/ld65 from the
                     # program (no ROMs needed) through the CPU+VIC-II
                     # and dumps the real rendered output as an image;
                     # see tools/demos/README.md
+
+make demo-real-rom  # same idea, but boots YOUR OWN staged real ROMs
+                    # through a genuine reset -- renders the actual
+                    # real boot screen. Never commit its output.
 ```
 
 All three test tiers currently pass (or, for `integration`, SKIP

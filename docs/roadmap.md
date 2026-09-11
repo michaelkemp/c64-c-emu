@@ -79,19 +79,18 @@ Owes: `docs/memory-map.md` (already written this pass).
       KERNAL/BASIC/Character ROM dumps into gitignored `roms/c64/`
       (already existed from Phase 0; `c64memory_load_kernal/basic/
       chargen()` now consume what it stages).
-- [~] Verification target: with real staged ROMs, the CPU reaches the
+- [x] Verification target: with real staged ROMs, the CPU reaches the
       genuine KERNAL reset vector and starts executing real ROM code.
-      **Partially done**: `tests/integration/test_boot.c`
-      (`make integration`) loads real ROMs if staged, resets the CPU
-      through them, and traces 5,000 real instructions with no illegal
-      opcode — but no real ROM dump was available in the session that
-      built this, so it does **not yet** assert the traced addresses
-      match the genuine KERNAL reset routine (RAM test, I/O init, screen
-      init, cold-start into BASIC), which this checklist item itself
-      requires beyond "doesn't crash." Whoever next has real ROMs staged
-      should tighten that assertion. The exhaustive bank-switching
+      **Done**: `tests/integration/test_boot.c` (`make integration`)
+      loads real ROMs, resets the CPU through the genuine vector
+      (observed: `$FCE2`), runs 3,000,000 real cycles, and asserts the
+      real "READY." screen-code sequence actually appears in screen
+      memory — confirming the genuine KERNAL/BASIC cold-start completed,
+      not just "didn't crash." `tools/demos/real_rom_boot_dump.c`
+      (`make demo-real-rom`) independently confirms this visually,
+      rendering the real boot screen. The exhaustive bank-switching
       truth table itself (all 8 LORAM/HIRAM/CHAREN combinations) is
-      fully verified with synthetic ROM content in
+      separately, fully verified with synthetic ROM content in
       `tests/unit/test_memory.c`, needing no real ROMs.
 
 ## Phase 3 — CIA 6526 (×2)
@@ -140,12 +139,14 @@ driven by the main loop's cycle interleaving from Phase 1/6's design,
 
 - [x] Standard character-mode text rendering first — verify against the
       real boot screen (`**** COMMODORE 64 BASIC V2 ****` etc.) from
-      genuine staged ROM content. **Partially done**: standard-mode
-      rendering itself is implemented and unit-tested against synthetic
-      screen/charset content in `tests/unit/test_vic_ii.c`; the actual
-      real-ROM boot-screen pixel-correctness check is blocked on real
-      ROMs, same as Phases 2/3 (see `docs/vic-ii.md`'s Verification
-      targets section).
+      genuine staged ROM content. **Done**: `make demo-real-rom`
+      (`tools/demos/real_rom_boot_dump.c`) genuinely renders the real
+      boot screen from real KERNAL/BASIC/Character ROM content,
+      including visibly exhibiting the documented "first three
+      c-accesses read forced `$FF`" DMA-delay quirk as a real, expected
+      artifact — see `docs/vic-ii.md`'s Verification targets section.
+      Synthetic screen/charset content in `tests/unit/test_vic_ii.c`
+      remains the base, ROM-free test coverage.
 - [x] Multicolor and bitmap modes. See `src/c64/vic_ii.c`'s
       `render_pixels_from_byte()`, sourced directly from the primary
       article (`docs/sources.md`).

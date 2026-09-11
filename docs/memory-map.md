@@ -110,19 +110,22 @@ truth table exhaustively, RAM write-through under every ROM view, and
 that a write to `$D000-$DFFF` while I/O is switched in does *not* reach
 the RAM underneath (the one real asymmetry vs. the ROM-shadow case).
 
-The real-ROM verification target (Phase 2's own "reaches the genuine
-KERNAL reset routine, not just doesn't crash") lives in
-`tests/integration/test_boot.c` (`make integration`) — it traces the
-first 5,000 real instructions after reset and reports the addresses
-visited, but **does not yet assert they match the genuine KERNAL reset
-routine**, since this session had no real, legally-staged ROM dump to
-verify against (this project never fetches/vendors one itself — see
-`CLAUDE.md`). Whoever next runs this with real staged ROMs should
-confirm the traced addresses against the actual KERNAL disassembly (RAM
-test, I/O init, screen init, cold-start into BASIC) and tighten that
-test's assertion accordingly — right now it's a placeholder that proves
-"didn't crash and didn't execute an illegal opcode," which the doc above
-explicitly calls insufficient on its own.
+**The real-ROM verification target is done.** `tests/integration/
+test_boot.c` (`make integration`) resets through the genuine KERNAL
+reset vector, runs 3,000,000 real PHI2 cycles, and asserts that the
+"READY." screen-code sequence actually appears somewhere in the real
+1000-byte video matrix — a concrete, behavioral check (the real KERNAL/
+BASIC cold-start actually completed and reached its normal prompt), not
+just "didn't crash" or a hardcoded address match. Verified locally
+against the user's own legally-owned ROM dump (staged via
+`scripts/stage_roms.sh`, sourced from a local VICE install on a machine
+where the user independently owns real C64 hardware — see the
+project's git history for that decision's reasoning) — the reset vector
+observed was `$FCE2`. `tools/demos/real_rom_boot_dump.c`
+(`make demo-real-rom`) renders the same boot all the way to a real,
+visible "\*\*\*\* COMMODORE 64 BASIC V2 \*\*\*\*" screen — see
+`tools/demos/README.md`. As always, no ROM or ROM-derived output is
+ever committed to this repo.
 
 ## Known gaps / deliberate simplifications
 

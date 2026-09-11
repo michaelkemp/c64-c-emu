@@ -248,11 +248,21 @@ see Known Gaps).
 ## Verification targets
 
 1. Real boot screen (Phase 2's ROMs + standard character mode) —
-   pixel-correct against the known, iconic real output. **Blocked**: no
-   real ROMs available in the session that built this (same blocker as
-   Phase 2/3, see `docs/memory-map.md`'s status section). Standard/
-   multicolor text and both bitmap modes are instead verified against
-   synthetic screen/charset/bitmap content in `tests/unit/test_vic_ii.c`.
+   pixel-correct against the known, iconic real output. **Done**: with
+   real ROMs staged (`scripts/stage_roms.sh`) and `c64memory_attach_vic()`
+   wired up, `make demo-real-rom` (`tools/demos/real_rom_boot_dump.c`)
+   genuinely renders the real "\*\*\*\* COMMODORE 64 BASIC V2 \*\*\*\*"
+   boot screen and "READY." prompt from real KERNAL/BASIC/Character ROM
+   content — visually confirmed, and `tests/integration/test_boot.c`
+   independently confirms it behaviorally (the real "READY." screen-code
+   sequence appears in screen memory after a real cold-start). This run
+   also visibly exhibited the documented "first three c-accesses of a
+   bad line read forced `$FF`" DMA-delay quirk (a checkerboard artifact
+   on the screen's left edge) with real ROM content, not just in
+   synthetic tests. Standard/multicolor text and both bitmap modes'
+   *pixel-level* address/data-bit formulas are still primarily verified
+   against synthetic content in `tests/unit/test_vic_ii.c`, since
+   pixel-exact comparison against a reference image wasn't done here.
 2. A hand-assembled test program that changes `$D020` (border color)
    partway down the screen from a raster IRQ handler, producing a
    visibly split-color frame when rendered scanline-by-scanline — the

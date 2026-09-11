@@ -19,6 +19,10 @@
 #                      ld65 from the cc65 suite, no ROMs), runs it
 #                      through the CPU+VIC-II, and dumps a screenshot --
 #                      see tools/demos/framebuffer_dump.c
+#   make demo-real-rom - same idea, but boots your own staged real ROMs
+#                      (scripts/stage_roms.sh) through a real reset --
+#                      see tools/demos/real_rom_boot_dump.c. Never commit
+#                      its output; it renders real ROM content.
 #   make clean       - removes build/
 
 CC := gcc
@@ -48,7 +52,7 @@ DORMANN_TEST_BINARY := $(DORMANN_VENDOR_DIR)/bin_files/6502_functional_test.bin
 INTEGRATION_MAIN_SRCS := $(wildcard tests/integration/test_*.c)
 INTEGRATION_BINS := $(patsubst tests/integration/%.c,$(BUILD_DIR)/integration/%,$(INTEGRATION_MAIN_SRCS))
 
-.PHONY: all test unit-test fetch-dormann dormann integration demo clean
+.PHONY: all test unit-test fetch-dormann dormann integration demo demo-real-rom clean
 
 all: unit-test
 
@@ -108,6 +112,22 @@ demo: $(DEMO_BIN) $(DEMO_TOOL_BIN)
 	./$(DEMO_TOOL_BIN) $(DEMO_BIN) C000 $(DEMO_OUT_PPM) 3
 	@echo "Wrote $(DEMO_OUT_PPM) -- view directly, or convert to PNG with:"
 	@echo "  convert $(DEMO_OUT_PPM) $(BUILD_DIR)/hello_c64.png"
+
+REAL_ROM_DEMO_BIN := $(BUILD_DIR)/real_rom_boot_dump
+REAL_ROM_OUT_PPM := $(BUILD_DIR)/real_boot.ppm
+
+$(REAL_ROM_DEMO_BIN): $(DEMO_DIR)/real_rom_boot_dump.c $(CORE_SRCS) $(CORE_HDRS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEMO_DIR)/real_rom_boot_dump.c $(CORE_SRCS) -o $@ $(LDLIBS)
+
+demo-real-rom: $(REAL_ROM_DEMO_BIN)
+	@if [ ! -f roms/c64/kernal.rom ] || [ ! -f roms/c64/basic.rom ] || [ ! -f roms/c64/chargen.rom ]; then \
+		echo "Real ROMs not staged under roms/c64/ -- run scripts/stage_roms.sh with your own legally-acquired dumps first." >&2; \
+		exit 1; \
+	fi
+	./$(REAL_ROM_DEMO_BIN) roms/c64/kernal.rom roms/c64/basic.rom roms/c64/chargen.rom $(REAL_ROM_OUT_PPM)
+	@echo "Wrote $(REAL_ROM_OUT_PPM) -- view directly, or convert to PNG with:"
+	@echo "  convert $(REAL_ROM_OUT_PPM) $(BUILD_DIR)/real_boot.png"
+	@echo "(Never commit this output -- it renders real, copyrighted KERNAL/BASIC ROM content. See CLAUDE.md's license discipline.)"
 
 clean:
 	rm -rf $(BUILD_DIR)

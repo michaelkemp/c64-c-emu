@@ -174,21 +174,25 @@ was first built on; either was acceptable per the roadmap.
       cycle-stepped (`cpu6502_cycle()`, one PHI2 cycle at a time),
       passes both the hand-written unit tests and the full Dormann
       suite. Build system: a plain Makefile. See `src/cpu/`, `tests/`.
-- [~] **Phase 2** — C64 memory map/PLA bank-switching/6510 I/O port:
+- [x] **Phase 2** — C64 memory map/PLA bank-switching/6510 I/O port:
       done and unit-tested (all 8 truth-table rows, RAM write-through,
       the I/O-vs-RAM write asymmetry). See `src/c64/memory.c`. The real-
-      ROM boot verification (`tests/integration/test_boot.c`) is only
-      partially done — no real ROM dump was available to verify against
-      in the session that built it; see that file's own comment and
-      `docs/memory-map.md`'s "Implementation status" section.
+      ROM boot verification (`tests/integration/test_boot.c`) is now
+      genuinely done too: with real ROMs staged locally (never
+      committed — see below), it resets through the real KERNAL vector
+      and confirms the actual "READY." prompt appears in screen memory
+      after a real cold-start. See `docs/memory-map.md`'s status
+      section.
 - [~] **Phase 3** — MOS 6526 CIA (×2) + keyboard matrix + joystick:
       done and unit-tested (74 assertions, all synthetic), sourced
       directly from the primary datasheet — see `src/c64/cia.c`,
       `src/c64/keyboard.c`, `docs/cia.md`, `docs/sources.md`. Not wired
       into the bus/CPU yet (deliberately deferred to Phase 6, see
-      `docs/cia.md`'s status section) and not empirically verified
-      against real hardware (blocked on real ROMs, same as Phase 2).
-- [~] **Phase 4** — VIC-II (PAL/6569): done and unit-tested (24
+      `docs/cia.md`'s status section); the keyboard-matrix-layout
+      empirical cross-check specifically still needs that wiring plus
+      real keypress-to-KERNAL-character verification, so it remains open
+      even now that real ROMs are available locally.
+- [x] **Phase 4** — VIC-II (PAL/6569): done and unit-tested (24
       assertions, all synthetic), sourced directly from Christian
       Bauer's primary cycle-by-cycle article — see `src/c64/vic_ii.c`,
       `docs/vic-ii.md`, `docs/sources.md`. Real per-cycle timing/bus-
@@ -197,17 +201,15 @@ was first built on; either was acceptable per the roadmap.
       compositing — see `src/c64/vic_ii.h`'s header comment for the
       exact granularity decision and what it does/doesn't reproduce.
       Not wired into the bus/CPU/CIA2 bank-select yet (deliberately
-      deferred to Phase 6) and not empirically verified against real
-      hardware (blocked on real ROMs, same as Phases 2-3). **Visually
-      smoke-tested**, though: `c64memory_attach_vic()` now lets
-      `C64Memory` route `$D000-$D3FF` to a real `VicII`, and
-      `tools/demos/` (`make demo`) runs a small self-contained 6502
-      program (no ROMs needed) through the CPU+VIC-II and dumps the
-      real rendered output as an image — see `tools/demos/README.md`.
-      This is a deliberately early, partial slice of Phase 6/7, built
-      because there was otherwise no way to see whether the VIC-II
-      actually renders anything correct; it is not those phases
-      themselves.
+      deferred to Phase 6). **Visually confirmed against real ROMs**:
+      `c64memory_attach_vic()` lets `C64Memory` route `$D000-$D3FF` to a
+      real `VicII`, and `make demo` / `make demo-real-rom`
+      (`tools/demos/`) render, respectively, a synthetic "HELLO C64"
+      screen and the genuine real KERNAL/BASIC boot screen — see
+      `tools/demos/README.md`. These are a deliberately early, partial
+      slice of Phase 6/7, built because there was otherwise no way to
+      see whether the VIC-II actually renders anything correct; they
+      are not those phases themselves.
 - [~] **Phase 5** — MOS 6581 SID: done and unit-tested (24 assertions),
       sourced directly from the primary datasheet — see `src/c64/sid.c`,
       `docs/sid.md`, `docs/sources.md`. All four oscillators, hard sync,

@@ -12,9 +12,17 @@
  * that isn't part of that base suite. */
 
 #include <stdio.h>
+#include <string.h>
 
 #include "../../src/c64/memory.h"
 #include "../../src/cpu/cpu6502.h"
+
+/* "READY." in default (unshifted) C64 screen codes: A-Z map to 1-26
+ * (screen_code = ascii - 64), digits/most punctuation are unchanged --
+ * a well-established, extremely widely-documented PETSCII/screen-code
+ * fact, not specific to this ROM dump. */
+static const uint8_t READY_SCREEN_CODES[] = {
+    'R' - 64, 'E' - 64, 'A' - 64, 'D' - 64, 'Y' - 64, '.'};
 
 int main(void) {
     C64Memory mem;
@@ -39,33 +47,54 @@ int main(void) {
 
     printf("Reset vector: PC=$%04X\n", cpu.pc);
 
-    /* Trace the first several thousand instructions and report the
-     * distinct addresses visited -- "it doesn't crash" isn't sufficient
-     * per docs/memory-map.md, but this project also doesn't hardcode
-     * specific real KERNAL disassembly addresses from memory (that's
-     * exactly the kind of unverified-secondhand-fact the project's own
-     * methodology warns against -- see docs/references-and-gotchas.md).
-     * A human (or a future pass that reads the real, disassembled ROM
-     * this session doesn't have access to) should confirm the addresses
-     * printed here correspond to the genuine KERNAL reset routine
-     * (RAM test, I/O init, screen init, cold-start into BASIC). */
-    const int instructions_to_trace = 5000;
-    for (int i = 0; i < instructions_to_trace; i++) {
+    /* Run real elapsed PHI2 cycles (not just "some instructions") --
+     * comfortably enough to get through the KERNAL's own cold-start
+     * sequence and BASIC's cold-start into its keyboard-wait loop.
+     * CIA1/CIA2 are still Phase 2's stub and the CPU's IRQ line is
+     * never asserted (Phase 6's job), so the jiffy clock never ticks
+     * and the cursor never blinks -- but the boot screen text is
+     * printed via direct, synchronous KERNAL/BASIC writes before any
+     * of that would matter. */
+    const long cycles_to_run = 3000000L;
+    bool crashed = false;
+    for (long i = 0; i < cycles_to_run; i++) {
+        cpu6502_cycle(&cpu);
         if (cpu.illegal_opcode_hit) {
-            printf("FAIL: illegal opcode $%02X hit at PC=$%04X after %d instructions -- "
+            printf("FAIL: illegal opcode $%02X hit at PC=$%04X after %ld cycles -- "
                    "PC likely wandered into garbage\n",
                    cpu.last_illegal_opcode, cpu.pc, i);
-            return 1;
+            crashed = true;
+            break;
         }
-        cpu6502_cycle(&cpu);
-        while (cpu.mid_instruction) {
-            cpu6502_cycle(&cpu);
+    }
+    if (crashed) {
+        return 1;
+    }
+
+    /* The real, concrete, behavioral check per docs/memory-map.md:
+     * not just "it doesn't crash", but that the genuine KERNAL/BASIC
+     * cold-start actually reached its normal "READY." prompt -- found
+     * by scanning the whole 1000-byte video matrix ($0400-$07E7) for
+     * the "READY." screen-code sequence, rather than assuming its
+     * exact on-screen row/column position. */
+    bool found_ready = false;
+    for (int pos = 0; pos <= 1000 - (int)sizeof(READY_SCREEN_CODES); pos++) {
+        if (memcmp(&mem.ram[0x0400 + pos], READY_SCREEN_CODES, sizeof(READY_SCREEN_CODES)) == 0) {
+            found_ready = true;
+            break;
         }
     }
 
-    printf("PASS (weak): executed %d real KERNAL instructions with no illegal opcode and no crash. "
-           "PC is now $%04X. This does NOT yet confirm the traced addresses match the genuine "
-           "KERNAL reset routine -- see this file's own comment.\n",
-           instructions_to_trace, cpu.pc);
+    if (!found_ready) {
+        printf("FAIL: ran %ld cycles (PC now $%04X) but never found \"READY.\" in screen memory --"
+               " the KERNAL/BASIC cold-start did not reach its normal prompt.\n",
+               cycles_to_run, cpu.pc);
+        return 1;
+    }
+
+    printf("PASS: genuine KERNAL/BASIC cold-start reached its real \"READY.\" prompt "
+           "(confirmed via actual screen memory content, not just address tracing) "
+           "after %ld cycles. Final PC=$%04X.\n",
+           cycles_to_run, cpu.pc);
     return 0;
 }
