@@ -145,11 +145,18 @@ src/
     keyboard.c
     vic_ii.h              # MOS 6567/6569 VIC-II, PAL timing (Phase 4)
     vic_ii.c              # sourced directly from Bauer's cycle-by-cycle article, see docs/sources.md
+    palette.h             # VIC-II's 16-color palette as RGB8 (a disclosed approximation, see docs/sources.md)
+    palette.c
 tests/
   unit/                 # hand-written unit tests (CPU + memory map), no ROMs needed
   dormann/              # runs the fetched Dormann suite against the CPU core
   integration/          # real-ROM tier -- needs scripts/stage_roms.sh run first
   vendor/               # gitignored, populated by scripts/fetch_dormann_tests.sh only
+tools/
+  demos/                # ad-hoc smoke-test tools, NOT permanent deliverables -- see
+                         # tools/demos/README.md. Built between Phases 4 and 5 to get
+                         # a visual "does the VIC-II actually render anything" check
+                         # before Phase 6/7 exist for real; `make demo` runs it.
 roms/                   # gitignored, populated by stage_roms.sh only
 ```
 
@@ -189,7 +196,16 @@ was first built on; either was acceptable per the roadmap.
       exact granularity decision and what it does/doesn't reproduce.
       Not wired into the bus/CPU/CIA2 bank-select yet (deliberately
       deferred to Phase 6) and not empirically verified against real
-      hardware (blocked on real ROMs, same as Phases 2-3).
+      hardware (blocked on real ROMs, same as Phases 2-3). **Visually
+      smoke-tested**, though: `c64memory_attach_vic()` now lets
+      `C64Memory` route `$D000-$D3FF` to a real `VicII`, and
+      `tools/demos/` (`make demo`) runs a small self-contained 6502
+      program (no ROMs needed) through the CPU+VIC-II and dumps the
+      real rendered output as an image — see `tools/demos/README.md`.
+      This is a deliberately early, partial slice of Phase 6/7, built
+      because there was otherwise no way to see whether the VIC-II
+      actually renders anything correct; it is not those phases
+      themselves.
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

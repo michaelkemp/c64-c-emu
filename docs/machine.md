@@ -7,6 +7,16 @@ granularity) and **real-time pacing** (making emulated time track real
 wall-clock time, without drifting and without needing the host CPU to
 spin at 100%).
 
+**Note**: `tools/demos/framebuffer_dump.c` already does a tiny,
+deliberately partial slice of "who runs when" (CPU + VIC-II only, no
+CIAs/SID/interrupts, no real-time pacing at all — it just runs a fixed
+number of cycles as fast as possible and dumps a screenshot). It exists
+purely as an early visual smoke test for Phase 4's VIC-II (see
+`tools/demos/README.md`) and is not a starting point to build this
+phase's real main loop from — this phase still needs to add both CIAs,
+SID, real IRQ/NMI delivery, and actual real-time pacing, none of which
+that tool has.
+
 ## Cycle interleaving
 
 The C64's CPU, VIC-II, and (once Phase 9b exists) the 1541's own CPU all

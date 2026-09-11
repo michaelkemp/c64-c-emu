@@ -31,6 +31,11 @@ void c64memory_init(C64Memory *mem) {
      * fetching the reset vector, to read through to real KERNAL ROM. */
     mem->cpu_port_ddr = 0x00;
     mem->cpu_port_data = 0x00;
+    mem->vic = NULL;
+}
+
+void c64memory_attach_vic(C64Memory *mem, VicII *vic) {
+    mem->vic = vic;
 }
 
 static bool load_rom_file(uint8_t *dest, size_t expected_size, const char *path) {
@@ -79,7 +84,16 @@ uint8_t c64memory_effective_port(const C64Memory *mem) {
  * chip's own phase/doc, which frame it as their decision to make. */
 static uint8_t io_read(C64Memory *mem, uint16_t addr) {
     if (addr <= 0xD3FFu) {
-        return 0; /* VIC-II -- Phase 4 */
+        /* VIC-II registers repeat every 64 bytes across this 1KB
+         * window -- confirmed directly from Bauer's article (see
+         * docs/sources.md): "register 0 appears on addresses $d000,
+         * $d040, $d080 etc." Falls back to the pre-Phase-4 stub (reads
+         * 0) if no VicII has been attached yet -- see
+         * c64memory_attach_vic(). */
+        if (mem->vic != NULL) {
+            return vic_ii_reg_read(mem->vic, (uint8_t)((addr - 0xD000u) & 0x3Fu));
+        }
+        return 0;
     }
     if (addr <= 0xD7FFu) {
         return 0; /* SID -- Phase 5 */
@@ -101,6 +115,12 @@ static uint8_t io_read(C64Memory *mem, uint16_t addr) {
 }
 
 static void io_write(C64Memory *mem, uint16_t addr, uint8_t value) {
+    if (addr <= 0xD3FFu) {
+        if (mem->vic != NULL) {
+            vic_ii_reg_write(mem->vic, (uint8_t)((addr - 0xD000u) & 0x3Fu), value);
+        }
+        return;
+    }
     if (addr >= 0xD800u && addr <= 0xDBFFu) {
         mem->color_ram[addr - 0xD800u] = value & 0x0Fu;
         return;

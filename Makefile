@@ -14,6 +14,11 @@
 #   make integration - real-ROM integration tests (tier 3) -- needs the
 #                      user's own dumps staged via scripts/stage_roms.sh
 #                      first; prints SKIP (not a failure) if they aren't
+#   make demo        - ad-hoc smoke test (tools/demos/): assembles a
+#                      small self-contained 6502 program (needs ca65/
+#                      ld65 from the cc65 suite, no ROMs), runs it
+#                      through the CPU+VIC-II, and dumps a screenshot --
+#                      see tools/demos/framebuffer_dump.c
 #   make clean       - removes build/
 
 CC := gcc
@@ -22,8 +27,8 @@ BUILD_DIR := build
 
 # Every module lands here as its own phase's chip/subsystem gets built --
 # see CLAUDE.md's repo map.
-CORE_SRCS := src/cpu/cpu6502.c src/c64/memory.c src/c64/cia.c src/c64/keyboard.c src/c64/vic_ii.c
-CORE_HDRS := src/bus.h src/cpu/cpu6502.h src/c64/memory.h src/c64/cia.h src/c64/keyboard.h src/c64/vic_ii.h
+CORE_SRCS := src/cpu/cpu6502.c src/c64/memory.c src/c64/cia.c src/c64/keyboard.c src/c64/vic_ii.c src/c64/palette.c
+CORE_HDRS := src/bus.h src/cpu/cpu6502.h src/c64/memory.h src/c64/cia.h src/c64/keyboard.h src/c64/vic_ii.h src/c64/palette.h
 
 # One self-contained test binary per tests/unit/test_*.c file (each has
 # its own main()), sharing the tiny test framework in testutil.c.
@@ -42,7 +47,7 @@ DORMANN_TEST_BINARY := $(DORMANN_VENDOR_DIR)/bin_files/6502_functional_test.bin
 INTEGRATION_MAIN_SRCS := $(wildcard tests/integration/test_*.c)
 INTEGRATION_BINS := $(patsubst tests/integration/%.c,$(BUILD_DIR)/integration/%,$(INTEGRATION_MAIN_SRCS))
 
-.PHONY: all test unit-test fetch-dormann dormann integration clean
+.PHONY: all test unit-test fetch-dormann dormann integration demo clean
 
 all: unit-test
 
@@ -81,6 +86,27 @@ integration: $(INTEGRATION_BINS)
 		echo "== $$bin =="; \
 		./$$bin || exit 1; \
 	done
+
+DEMO_DIR := tools/demos
+DEMO_ASM := $(DEMO_DIR)/hello_c64.s
+DEMO_CFG := $(DEMO_DIR)/hello_c64.cfg
+DEMO_BIN := $(BUILD_DIR)/hello_c64.bin
+DEMO_TOOL_BIN := $(BUILD_DIR)/framebuffer_dump
+DEMO_OUT_PPM := $(BUILD_DIR)/hello_c64.ppm
+
+$(DEMO_BIN): $(DEMO_ASM) $(DEMO_CFG) | $(BUILD_DIR)
+	@command -v ca65 >/dev/null && command -v ld65 >/dev/null || \
+		{ echo "ca65/ld65 (the cc65 suite) not found -- install it to build the demo program." >&2; exit 1; }
+	ca65 $(DEMO_ASM) -o $(BUILD_DIR)/hello_c64.o
+	ld65 -C $(DEMO_CFG) $(BUILD_DIR)/hello_c64.o -o $(DEMO_BIN)
+
+$(DEMO_TOOL_BIN): $(DEMO_DIR)/framebuffer_dump.c $(CORE_SRCS) $(CORE_HDRS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEMO_DIR)/framebuffer_dump.c $(CORE_SRCS) -o $@
+
+demo: $(DEMO_BIN) $(DEMO_TOOL_BIN)
+	./$(DEMO_TOOL_BIN) $(DEMO_BIN) C000 $(DEMO_OUT_PPM) 3
+	@echo "Wrote $(DEMO_OUT_PPM) -- view directly, or convert to PNG with:"
+	@echo "  convert $(DEMO_OUT_PPM) $(BUILD_DIR)/hello_c64.png"
 
 clean:
 	rm -rf $(BUILD_DIR)

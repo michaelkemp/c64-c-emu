@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "../bus.h"
+#include "vic_ii.h"
 
 /* The real C64 address space: RAM everywhere underneath, with the
  * BASIC/KERNAL/Character ROM views and I/O space switched in on top of
@@ -33,9 +34,21 @@ typedef struct C64Memory {
      * sense) aren't modeled yet -- see Known Gaps. */
     uint8_t cpu_port_ddr;  /* $00 */
     uint8_t cpu_port_data; /* $01 */
+
+    /* When attached (c64memory_attach_vic()), $D000-$D3FF register
+     * accesses (while I/O is switched in) dispatch to this real VicII
+     * instance -- including the real 64-byte mirroring -- instead of
+     * the Phase 2 stub. NULL means "no VIC-II yet", preserving the
+     * original stub behavior unchanged (existing Phase 2/3 tests don't
+     * attach one). This is a deliberately early, partial slice of
+     * Phase 6's real job ("wire CPU + Bus + chips together") -- see
+     * CLAUDE.md's status section and tools/demos/. */
+    VicII *vic;
 } C64Memory;
 
 void c64memory_init(C64Memory *mem);
+
+void c64memory_attach_vic(C64Memory *mem, VicII *vic);
 
 /* Load a real ROM dump the user staged via scripts/stage_roms.sh into
  * gitignored roms/c64/ -- this project never fetches or vendors these

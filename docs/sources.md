@@ -40,6 +40,22 @@ roughly the phase order it was needed.
   high via passive pull-ups, timer control regs zero, timer *latches*
   reset to all-ones). See `docs/cia.md`.
 
+- **Commodore 64 keyboard matrix layout** —
+  http://sta.c64.org/cbm64kbdlay.html — fetched as raw text (not an AI
+  summary of it) to get the exact 8×8 key-position table and its exact
+  hex bitmasks per column. This is the *specific* commonly-cited layout
+  `docs/cia.md` refers to as one of (at least) two disagreeing
+  community layouts — it has **not** been independently cross-checked
+  against a real KERNAL/hardware empirical test (blocked on real staged
+  ROMs, see `docs/memory-map.md`'s Phase 2 status), so treat the exact
+  key-to-bit-position mapping as "sourced, but not yet empirically
+  verified," per `docs/cia.md`'s own disclosed-gap convention.
+  Corroborating (not independently fetched) search results agreeing on
+  the PA=column-select/PB=row-sense direction:
+  [c64os.com](https://c64os.com/post/howthekeyboardworks),
+  [elite.bbcelite.com](https://elite.bbcelite.com/deep_dives/reading_the_commodore_64_keyboard_matrix.html),
+  [c64-wiki.com](https://www.c64-wiki.com/wiki/Keyboard).
+
 ## Phase 4 — VIC-II
 
 - **Christian Bauer's cycle-by-cycle VIC-II article** —
@@ -68,18 +84,14 @@ roughly the phase order it was needed.
   and the full `$D000-$D02E` register map, including which bits read as
   fixed 1s and which registers auto-clear on read.
 
-- **Commodore 64 keyboard matrix layout** —
-  http://sta.c64.org/cbm64kbdlay.html — fetched as raw text (not an AI
-  summary of it — see this file's own note above) to get the exact
-  8×8 key-position table and its exact hex bitmasks per column. This is
-  the *specific* commonly-cited layout `docs/cia.md` refers to as one of
-  (at least) two disagreeing community layouts — it has **not** been
-  independently cross-checked against a real KERNAL/hardware empirical
-  test (blocked on real staged ROMs, see `docs/memory-map.md`'s
-  Phase 2 status), so treat the exact key-to-bit-position mapping as
-  "sourced, but not yet empirically verified," per `docs/cia.md`'s own
-  disclosed-gap convention. Corroborating (not independently fetched)
-  search results agreeing on the PA=column-select/PB=row-sense
-  direction: [c64os.com](https://c64os.com/post/howthekeyboardworks),
-  [elite.bbcelite.com](https://elite.bbcelite.com/deep_dives/reading_the_commodore_64_keyboard_matrix.html),
-  [c64-wiki.com](https://www.c64-wiki.com/wiki/Keyboard).
+## Early visual smoke test (between Phases 4 and 5)
+
+- **Philip "Pepto" Timmermann's VIC-II color analysis** —
+  https://www.pepto.de/projects/colorvic/2001/, fetched as raw page
+  text. Bauer's article (section 3.3, see above) confirms there is no
+  canonical RGB palette for the VIC-II at all — the real chip outputs
+  an analog composite signal, not RGB — so this is a disclosed,
+  commonly-cited *approximation*, not a primary-sourced fact, used only
+  for `src/c64/palette.c`'s `VIC_PALETTE_RGB` table (needed to turn a
+  VIC-II color index into something a PNG/PPM image or, later, an SDL2
+  texture can actually display). See `tools/demos/README.md`.

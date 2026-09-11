@@ -94,15 +94,27 @@ make dormann        # builds and runs it against the CPU core
 make integration    # real-ROM tier -- needs scripts/stage_roms.sh run
                     # first with your own dumps; SKIPs (not a failure)
                     # if they aren't staged
+
+make demo           # ad-hoc visual smoke test (needs ca65/ld65 from the
+                    # cc65 suite) -- runs a small self-contained 6502
+                    # program (no ROMs needed) through the CPU+VIC-II
+                    # and dumps the real rendered output as an image;
+                    # see tools/demos/README.md
 ```
 
-All three currently pass (or, for `integration`, SKIP cleanly with no
-ROMs staged): 208 hand-written unit-test assertions (70 CPU + 40 memory
-map + 59 CIA + 15 keyboard/joystick + 24 VIC-II), and the full Dormann
-suite (traps at its documented success address, `$3469`, after
-96,241,367 cycles). See `docs/6502-reference.md`, `docs/memory-map.md`,
-`docs/cia.md`, `docs/vic-ii.md`, and `docs/testing-strategy.md` for
-details.
+All three test tiers currently pass (or, for `integration`, SKIP
+cleanly with no ROMs staged): 208 hand-written unit-test assertions
+(70 CPU + 40 memory map + 59 CIA + 15 keyboard/joystick + 24 VIC-II),
+and the full Dormann suite (traps at its documented success address,
+`$3469`, after 96,241,367 cycles). See `docs/6502-reference.md`,
+`docs/memory-map.md`, `docs/cia.md`, `docs/vic-ii.md`, and
+`docs/testing-strategy.md` for details.
+
+`make demo` is the fastest way to actually *see* something: it renders
+real "HELLO C64" text plus a raster-split border effect, entirely
+through the Phase 1-4 modules built so far (see
+`tools/demos/hello_c64_screenshot.png` for a checked-in reference of
+correct output).
 
 **Keep this section current as each phase lands** — a README describing
 an aspiration instead of what actually works is worse than a short "not

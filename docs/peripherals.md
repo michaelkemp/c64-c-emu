@@ -16,6 +16,18 @@ its own. It's what real reference emulators in this space are commonly
 built on. SDL3 is a reasonable alternative if you want the newer API;
 pick one and document which.
 
+**Status check from the Phase 4 session**: the runtime library
+(`libsdl2-2.0-0`) is present on the machine this project has been built
+on so far, but the development headers (`libsdl2-dev`) are not, and
+installing them needs a `sudo apt-get install` — a system-level change
+this project deliberately hasn't made without the user's explicit go-
+ahead. Confirm/install this before actually starting Phase 7. In the
+meantime, `tools/demos/framebuffer_dump.c` dumps the VIC-II's
+framebuffer straight to a PPM image with zero new dependencies, as an
+early, deliberately partial visual smoke test (no real-time display, no
+audio, no input) — see `tools/demos/README.md`. It is not a starting
+point for this phase's real SDL2 integration.
+
 ## Screen
 
 - The VIC-II (Phase 4) produces pixel data — either a full frame buffer
