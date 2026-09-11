@@ -143,6 +143,8 @@ src/
     cia.c                # sourced directly from the primary datasheet, see docs/sources.md
     keyboard.h            # 8x8 keyboard matrix + digital joystick (Phase 3)
     keyboard.c
+    vic_ii.h              # MOS 6567/6569 VIC-II, PAL timing (Phase 4)
+    vic_ii.c              # sourced directly from Bauer's cycle-by-cycle article, see docs/sources.md
 tests/
   unit/                 # hand-written unit tests (CPU + memory map), no ROMs needed
   dormann/              # runs the fetched Dormann suite against the CPU core
@@ -177,6 +179,17 @@ was first built on; either was acceptable per the roadmap.
       into the bus/CPU yet (deliberately deferred to Phase 6, see
       `docs/cia.md`'s status section) and not empirically verified
       against real hardware (blocked on real ROMs, same as Phase 2).
+- [~] **Phase 4** — VIC-II (PAL/6569): done and unit-tested (24
+      assertions, all synthetic), sourced directly from Christian
+      Bauer's primary cycle-by-cycle article — see `src/c64/vic_ii.c`,
+      `docs/vic-ii.md`, `docs/sources.md`. Real per-cycle timing/bus-
+      access state (badlines costing the real 43 cycles, VC/RC, sprite
+      DMA, raster IRQ, both border flip-flops) with per-pixel
+      compositing — see `src/c64/vic_ii.h`'s header comment for the
+      exact granularity decision and what it does/doesn't reproduce.
+      Not wired into the bus/CPU/CIA2 bank-select yet (deliberately
+      deferred to Phase 6) and not empirically verified against real
+      hardware (blocked on real ROMs, same as Phases 2-3).
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

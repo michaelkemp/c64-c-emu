@@ -40,6 +40,34 @@ roughly the phase order it was needed.
   high via passive pull-ups, timer control regs zero, timer *latches*
   reset to all-ones). See `docs/cia.md`.
 
+## Phase 4 — VIC-II
+
+- **Christian Bauer's cycle-by-cycle VIC-II article** —
+  https://www.cebix.net/VIC-Article.txt. WebFetch's HTML/AI-summary
+  path was tried first and gave a plausible-looking summary, but per
+  this project's own methodology this is exactly the kind of document
+  worth reading raw — so the actual `.txt` was downloaded directly
+  (`curl`) and read section-by-section. This paid off concretely: the
+  article's own ASCII-art cycle-diagram column alignment was genuinely
+  ambiguous to parse by eye/script (it looked like the first bad-line
+  c-access might be at cycle 16, not 15), and was only resolved
+  correctly by finding the article's own prose stating "the first
+  c-access in cycle 15" outright, settling it without guessing. Settled
+  (see `docs/vic-ii.md` for where each is used): the exact 63-cycle PAL
+  bus-access schedule (c/g/p/s-access/idle/refresh assignment per
+  cycle); the Bad Line Condition's exact definition and that `BA` is
+  low for 43 cycles (12-54), not 40; the "first three c-accesses read
+  forced `$FF`" DMA-delay quirk; VC/RC/VCBASE/VMLI's exact update rules;
+  all four implemented graphics modes' c-/g-access address and data-bit
+  formulas; sprite DMA on/off rules 1-7 (7a excluded, see
+  `docs/vic-ii.md`); sprite/background priority and collision rules,
+  including the "only the first collision after a zero read raises the
+  IRQ latch" detail; both border flip-flops' exact X/Y comparator
+  values and set/reset rules; `$D019`'s write-1-to-clear semantics
+  (confirmed as genuinely different from the CIA's read-clears ICR);
+  and the full `$D000-$D02E` register map, including which bits read as
+  fixed 1s and which registers auto-clear on read.
+
 - **Commodore 64 keyboard matrix layout** —
   http://sta.c64.org/cbm64kbdlay.html — fetched as raw text (not an AI
   summary of it — see this file's own note above) to get the exact

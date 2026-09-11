@@ -11,10 +11,13 @@ a once-per-frame snapshot architecturally cannot represent that no
 matter how much other fidelity it has.
 
 Primary references: Christian Bauer's cycle-by-cycle reverse-engineering
-article (widely available, search for "VIC-II Article" — cite the exact
-section when pulling a specific fact from it, since it's long and
-sections cover very different sub-behaviors) and the official
-preliminary MOS 6567 VIC-II datasheet.
+article — https://www.cebix.net/VIC-Article.txt, fetched and read as
+raw text (not an AI summary of it — see docs/sources.md for exactly
+what was confirmed and how, including one case where the raw diagram's
+own ASCII-art column alignment was genuinely ambiguous and had to be
+resolved by finding the article's own prose stating the fact in words
+instead of trusting a visual column-count). Rule numbers cited in
+`src/c64/vic_ii.c`'s comments refer to that article's own numbering.
 
 ## The PAL timing budget
 
@@ -60,6 +63,24 @@ explicitly as a known gap** (this is exactly the kind of thing the
 project's own convention exists to catch) and revisit if/when a real
 program's timing-sensitive effect doesn't work.
 
+**Decided (Phase 4, done): a middle ground, not either extreme.** The
+*timing/bus-access* state machine — bad-line detection, VC/RC/VCBASE/
+VMLI, c/g/p/s-access scheduling, the BA "bus stolen" signal, sprite DMA
+on/off, the raster-IRQ compare, both border flip-flops' Y-checks — runs
+at true **whole-PHI2-cycle** granularity via `vic_ii_cycle()`, called
+once per cycle exactly like the CPU core. *Pixel compositing* (border
+X-check, graphics color, sprite overlay/expansion/priority/collision)
+is computed per **pixel** (8 per cycle) as each cycle's data becomes
+available, written into a per-scanline buffer that's final once the
+line's 63 cycles complete. This is coarser than literally simulating
+the real 24-bit sprite shift registers and 8-bit graphics shift
+register cycle-by-cycle (it won't reproduce FLI, hyperscreen,
+linecrunch, or sprite stretching/crunch — all genuinely "Effects and
+applications" territory in the source article, not core chip behavior)
+but it reproduces every verification target below. See
+`src/c64/vic_ii.h`'s own header comment for the full reasoning, and
+"Known gaps" below for the complete list of what this doesn't cover.
+
 ## Register map (`$D000-$D02E`, mirrored through `$D3FF`)
 
 | Range | Purpose |
@@ -103,21 +124,50 @@ function, separate from the CPU-facing `bus_read8`, sourced from the
 same underlying RAM/Character-ROM arrays but through this different
 address translation.
 
+**Done** — `vic_ii_read()` in `src/c64/vic_ii.c` implements the bank
+offset and the `$1000-$1FFF`/`$9000-$9FFF` Character-ROM-override
+windows exactly as described above (banks 0 and 2 are the ones that
+overlap these windows; banks 1 and 3 never do). One honest caveat: this
+specific window-address fact is a **C64 board-wiring fact, not a
+VIC-II-chip fact** — Bauer's article (a VIC-II-specific document) says
+nothing about it, and this project's only source for it right now is
+this doc's own pre-existing text, not independently re-verified against
+a primary C64 schematic/board reference. Treat it the same way as the
+keyboard matrix layout (`docs/cia.md`): sourced, not yet independently
+cross-checked. Color RAM is wired directly into the c-access and is
+**not** part of this bank-switched 16KB space at all (confirmed from
+the article: c-access reads video-matrix data via `vic_ii_read()`, but
+its color nibble comes from a separate, always-present Color RAM,
+matching `src/c64/memory.c`'s own separate `color_ram` array from
+Phase 2 — `VicII` holds its own pointer to that same array).
+
 ## Modes to implement, in order
 
 1. **Standard character mode** (`ECM=0, BMM=0, MCM=0`) — verify against
    the real boot screen first; this is the concrete, unambiguous
-   "did I get the basics right" checkpoint.
+   "did I get the basics right" checkpoint. **Done** — see
+   `render_pixels_from_byte()`/`do_g_access()` in `src/c64/vic_ii.c`,
+   address/data formulas sourced directly from the article (section
+   3.7.3.1, confirmed via docs/sources.md). Verified with synthetic
+   screen/charset content in `tests/unit/test_vic_ii.c` (no real ROMs
+   available to check the actual boot screen — see Known Gaps).
 2. **Multicolor character mode** (`MCM=1, BMM=0`) — real per-cell
    behavior: each screen-RAM cell's *own* color-RAM entry's bit 3
    decides whether that specific cell renders hi-res or multicolor, not
    a single global switch. Get this per-cell nuance right; it's a real,
    verifiable fact from testing against real multicolor-text software.
+   **Done** — the per-cell MC-flag check (c-data bit 11, which is
+   literally color RAM's own bit 3) is implemented exactly as described.
 3. **Bitmap mode** (`BMM=1, MCM=0`) and **multicolor bitmap mode**
-   (`BMM=1, MCM=1`).
+   (`BMM=1, MCM=1`). **Done**, same file/section, formulas from article
+   sections 3.7.3.3/3.7.3.4.
 4. **Extended color mode** (`ECM=1`) — lower priority, rarely used by
    real software; fine to defer if nothing you're testing against needs
-   it, but document the deferral.
+   it, but document the deferral. **Deferred, disclosed**: `ctrl1`'s ECM
+   bit is recognized and renders solid black (matching the article's
+   own statement that this project's other unimplemented "invalid" mode
+   combinations all produce black) rather than the real four-background-
+   colors-per-character behavior. See Known Gaps.
 
 ## Sprites
 
@@ -131,6 +181,27 @@ a dedicated priority section) rather than a paraphrase, since this is a
 genuinely easy detail to get backwards and only shows up as a visible
 bug with a real sprite-using program running near the border.
 
+**Done** — `src/c64/vic_ii.c`'s `update_sprite_dma()` implements the
+article's DMA on/off rules 1-7 (section 3.8.1) exactly, including the
+Y-expansion "advance line" flip-flop and MCBASE/MC bookkeeping;
+`composite_sprites_for_line()` implements priority (`MxDP`,
+sprite-0-highest) and both collision types (section 3.8.2), including
+the real "only the first collision after the register reads as zero
+raises the IRQ latch bit" behavior and collision suppression inside the
+vertical border. Border-over-sprite priority is enforced structurally:
+sprite compositing runs against a background/border buffer that already
+has the border color written wherever `main_border` was set, and
+`composite_sprites_for_line()` never overwrites it.
+
+**Deliberately not implemented**: rule 7a (the obscure "CPU clears MxYE
+in cycle 15" MCBASE-averaging special case used by advanced
+sprite-stretching/crunch tricks — article section 3.14.7-equivalent
+"Effects and applications" territory). Real sprite DMA/rendering is
+modeled at whole-PHI2-cycle granularity, not the real half-cycle p/s-
+access phase timing (see "Architecture" above) — this doesn't affect
+priority, collision, or on-screen position, only exactly which half of
+which cycle the underlying bus access happens in.
+
 ## Badlines
 
 A "badline" is a real condition (raster line within the display window,
@@ -143,6 +214,18 @@ demos) to behave correctly — a badline that's only a queryable flag but
 doesn't actually cost the CPU cycles will desync any program timing a
 loop against real cycle counts across that raster line.
 
+**Done, and the actual number is 43, not 40** — confirmed directly from
+the article (section 3.7.2's rule 3, docs/sources.md): `BA` goes low in
+cycle 12 and stays low through cycle 54 (43 cycles), even though the
+40 c-accesses themselves only span cycles 15-54; `vic_ii_cycle()`
+returns `true` (bus stolen) for exactly that window. A genuinely subtle,
+directly-confirmed extra detail also implemented: **the first three
+c-accesses of any bad line (cycles 15-17) read a forced `$FF`** for the
+character/bitmap byte (the color-RAM-sourced bits are unaffected) due to
+a real AEC-vs-BA startup delay — this is the documented cause of the
+"colorful garbage stripe" visible on the left edge of real, naively-
+written custom-charset screens, not a bug to avoid reproducing.
+
 ## Raster IRQ
 
 `$D012` (bits 0-7) + `$D011` bit 7 (bit 8) together form a 9-bit raster
@@ -153,22 +236,85 @@ between instructions at the correct cycle, same as any other IRQ
 source). This is the single most important concrete capability this
 whole phase's architecture exists to deliver correctly.
 
+**Done.** One real, easy-to-get-wrong detail confirmed and implemented:
+**`$D019` is write-1-to-clear, not read-clears** like the CIA's ICR —
+"the processor has to write a 1 there 'by hand'... the VIC doesn't
+clear the latch on its own." A CIA-style implementation copy-pasted here
+would be a real, silent bug (spurious repeated IRQs, or IRQs that never
+clear). The compare check itself runs every cycle 1 (the article's own
+noted line-0-uses-cycle-2 exception is a disclosed, very minor gap —
+see Known Gaps).
+
 ## Verification targets
 
 1. Real boot screen (Phase 2's ROMs + standard character mode) —
-   pixel-correct against the known, iconic real output.
+   pixel-correct against the known, iconic real output. **Blocked**: no
+   real ROMs available in the session that built this (same blocker as
+   Phase 2/3, see `docs/memory-map.md`'s status section). Standard/
+   multicolor text and both bitmap modes are instead verified against
+   synthetic screen/charset/bitmap content in `tests/unit/test_vic_ii.c`.
 2. A hand-assembled test program that changes `$D020` (border color)
    partway down the screen from a raster IRQ handler, producing a
    visibly split-color frame when rendered scanline-by-scanline — the
    concrete test a frame-snapshot design structurally cannot pass.
+   **Done** as a direct register-write equivalent (no hand-assembled
+   6502 test program exists yet since Phase 6's real machine loop
+   doesn't exist to run one against): `test_raster_split_border_color_
+   mid_frame` in `tests/unit/test_vic_ii.c` writes `$D020` between two
+   scanlines and asserts both scanlines keep their own distinct border
+   color in the committed framebuffer.
 3. Sprite priority/collision against a hand-assembled test moving a
-   sprite across the border and over background content.
+   sprite across the border and over background content. **Partially
+   done**: `tests/unit/test_vic_ii.c` verifies sprite positioning,
+   standard and multicolor rendering, sprite-sprite priority, and
+   sprite-sprite collision detection (including the auto-clear-on-read
+   and first-collision-only-raises-IRQ semantics) directly against the
+   `VicII` struct/framebuffer. Not yet exercised via an actual
+   hand-assembled 6502 program moving a sprite across the border in
+   real time — that needs Phase 6's machine loop.
 
 ## Known gaps to disclose as you build
 
-- NTSC timing (65 cycles/line, different frame rate) — PAL-only unless/
-  until NTSC is explicitly wanted; document which you built.
-- Extended color mode, if deferred.
-- Full per-cycle (vs. per-scanline) accuracy, if you took the coarser
-  shortcut described above — say so explicitly, and name which specific
-  real-software timing effects are known not to work as a result.
+- NTSC timing (65 cycles/line, different frame rate) — **PAL (6569)
+  only**, as decided; `VIC_CYCLES_PER_LINE`/`VIC_LINES_PER_FRAME` in
+  `src/c64/vic_ii.h` are hardwired to the PAL values.
+- Extended color mode (ECM) and the three genuinely-invalid ECM/BMM/MCM
+  combinations — deferred, rendered as solid black. See "Modes" above.
+- **Granularity, decided**: whole-PHI2-cycle timing/bus-access state,
+  per-pixel compositing — not literal per-half-cycle shift-register
+  simulation. Concretely NOT reproducible under this model: FLI,
+  hyperscreen/border-opening, linecrunch, sprite stretching/crunch, and
+  any effect that depends on a register changing mid-character-cell
+  (sub-8-pixel) rather than between cycles. Concretely IS reproducible:
+  badline CPU-cycle stealing, raster-IRQ-timed register changes (the
+  project's own central bet), sprite DMA/priority/collision/movement.
+- Sprite DMA rule 7a (the CPU-clears-MxYE-in-cycle-15 special case) is
+  not implemented — see "Sprites" above.
+- The raster-IRQ compare's line-0-specific "checked in cycle 2 instead
+  of cycle 1" exception is not modeled (checked at cycle 1 uniformly) —
+  a one-cycle timing difference only observable if a raster IRQ is
+  deliberately set for line 0 itself.
+- Lightpen (`$D013`/`$D014`) is a plain read/write stub, not connected
+  to anything (no lightpen input exists in this project, and CIA1 Port
+  B bit 4 — the software-triggered LP line — isn't wired to it yet).
+- The real hardware invisible-X-position gap (`$1f8`-`$1ff`) is a
+  natural consequence of this project's `% VIC_X_MODULUS` arithmetic
+  (values in that range are simply never reached by the per-pixel
+  loop), not separately special-cased — confirmed to match the
+  article's own statement of this fact, not independently re-derived.
+- The rare multi-sprite-with-mixed-`MxDP` "foreground pixel inherits a
+  behind-foreground sprite's priority against a different, in-front
+  sprite" interaction (article section 3.8.2's own "hard to represent
+  consistently" case) is not modeled exactly — each sprite's priority
+  decision here is evaluated independently against the background/
+  foreground classification, not against other sprites' inherited
+  priority. See the comment in `composite_sprites_for_line()`.
+- Both border flip-flops default to *set* at `vic_ii_init()` (full
+  border until the display window is configured) — a reasonable,
+  disclosed initialization choice, not a fact stated by the article
+  (which doesn't document a power-on default for this internal,
+  non-register state) — see `src/c64/vic_ii.c`.
+- Not yet wired into `src/c64/memory.c`'s I/O dispatch, the CPU's IRQ
+  line, or CIA2's bank-select bits — deliberately deferred to Phase 6,
+  same pattern as Phase 3's CIA/keyboard modules (see `docs/cia.md`'s
+  status section for the reasoning).

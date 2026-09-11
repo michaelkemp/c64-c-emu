@@ -94,10 +94,10 @@ test-framework dependency.** CMake wasn't available on the machine this
 was first built on; the roadmap treats either as acceptable as long as
 it's written down.
 
-- `make unit-test` (or just `make`) — builds and runs the hand-written
-  CPU unit tests (`tests/unit/test_cpu.c`), no ROMs needed. This is
-  "the free tier": a fresh clone with nothing but the source and a C
-  compiler can run it.
+- `make unit-test` (or just `make`) — builds and runs every hand-written
+  unit test in `tests/unit/` (CPU, memory map, CIA, keyboard/joystick,
+  VIC-II), no ROMs needed. This is "the free tier": a fresh clone with
+  nothing but the source and a C compiler can run it.
 - `make fetch-dormann` — runs `scripts/fetch_dormann_tests.sh` (fetches
   the GPLv3 Klaus Dormann suite on demand into gitignored
   `tests/vendor/`, never vendored into this repo).

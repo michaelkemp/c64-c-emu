@@ -138,30 +138,50 @@ driven by the main loop's cycle interleaving from Phase 1/6's design,
 `docs/vic-ii.md` for the concrete cycle budget (63 PAL cycles/line ×
 312 lines/frame) and how badlines/sprite DMA steal cycles from the CPU.
 
-- [ ] Standard character-mode text rendering first — verify against the
+- [x] Standard character-mode text rendering first — verify against the
       real boot screen (`**** COMMODORE 64 BASIC V2 ****` etc.) from
-      genuine staged ROM content.
-- [ ] Multicolor and bitmap modes.
-- [ ] Sprites: fetch/render/expansion/multicolor/priority, sprite-sprite
+      genuine staged ROM content. **Partially done**: standard-mode
+      rendering itself is implemented and unit-tested against synthetic
+      screen/charset content in `tests/unit/test_vic_ii.c`; the actual
+      real-ROM boot-screen pixel-correctness check is blocked on real
+      ROMs, same as Phases 2/3 (see `docs/vic-ii.md`'s Verification
+      targets section).
+- [x] Multicolor and bitmap modes. See `src/c64/vic_ii.c`'s
+      `render_pixels_from_byte()`, sourced directly from the primary
+      article (`docs/sources.md`).
+- [x] Sprites: fetch/render/expansion/multicolor/priority, sprite-sprite
       and sprite-background collision, correctly clipped by the border
       (the border has strictly higher display priority than every
       sprite on real hardware — verify this specific fact against a
       primary source, e.g. Christian Bauer's VIC-II article, section on
       display priority, not a secondhand summary; this is a genuinely
-      easy fact to get backwards from a paraphrase).
-- [ ] Raster IRQ (`$D012`/`$D011` bit 7) firing at the exact real
+      easy fact to get backwards from a paraphrase). Confirmed directly
+      from the article and enforced structurally (sprite compositing
+      runs against a background/border buffer that already has the
+      border color written in, and never overwrites it) — see
+      `docs/vic-ii.md`'s Sprites section for what's deliberately not
+      modeled (rule 7a; the rare mixed-`MxDP` multi-sprite interaction).
+- [x] Raster IRQ (`$D012`/`$D011` bit 7) firing at the exact real
       scanline, and mid-frame register changes (e.g. `$D018` character
       set swaps partway down the screen) actually taking effect at the
       right scanline instead of only at frame-render time — this is the
       concrete capability a frame-snapshot design cannot provide, and
-      the reason this phase exists in this shape.
-- [ ] Badlines modeled as a real, cycle-stealing condition (not just a
+      the reason this phase exists in this shape. Includes the real,
+      easy-to-miss `$D019` write-1-to-clear semantics (genuinely
+      different from the CIA's read-clears ICR — see `docs/vic-ii.md`).
+- [x] Badlines modeled as a real, cycle-stealing condition (not just a
       queryable flag) — they must actually cost the CPU cycles when they
       happen, since real programs' timing-sensitive code depends on it.
-- [ ] Verification target: a real 6502 test program (hand-assembled)
+      Confirmed the real number is 43 cycles (12-54), not 40 — see
+      `docs/vic-ii.md`'s Badlines section.
+- [x] Verification target: a real 6502 test program (hand-assembled)
       that changes a register mid-frame (e.g. border color) and produces
       a visibly split-color frame when rendered scanline-by-scanline —
-      the concrete test that a frame-snapshot design would fail.
+      the concrete test that a frame-snapshot design would fail. **Done
+      as a direct register-write equivalent**, not yet as an actual
+      hand-assembled 6502 program (Phase 6's machine loop doesn't exist
+      yet to run one against) — see `docs/vic-ii.md`'s Verification
+      targets section for the precise scope of what's tested.
 
 ## Phase 5 — SID
 

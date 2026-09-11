@@ -9,12 +9,14 @@ real commercial software, keeping up with the real PAL clock rate.
 
 ## Status
 
-**Phases 1-3 are done** (6502 CPU core; C64 memory map/PLA bank-
-switching; the MOS 6526 CIA ×2, keyboard matrix, and joystick) — **Phase
-4 (VIC-II) is next.** Read `CLAUDE.md` first, then `docs/roadmap.md` for
-the phase-by-phase build order. Note: Phases 2 and 3 both have a
-real-ROM verification step blocked on the user staging their own ROM
-dumps (see `docs/memory-map.md`'s and `docs/cia.md`'s status sections).
+**Phases 1-4 are done** (6502 CPU core; C64 memory map/PLA bank-
+switching; the MOS 6526 CIA ×2, keyboard matrix, and joystick;
+PAL VIC-II) — **Phase 5 (SID) is next.** Read `CLAUDE.md` first, then
+`docs/roadmap.md` for the phase-by-phase build order. Note: Phases 2-4
+each have a real-ROM verification step blocked on the user staging
+their own ROM dumps (see `docs/memory-map.md`'s, `docs/cia.md`'s, and
+`docs/vic-ii.md`'s status sections), and none of the built chips are
+wired together into one running machine yet — that's Phase 6.
 
 ## Why this project exists
 
@@ -75,14 +77,15 @@ they're absent, which is the default state of a fresh clone.
 ## Building and running
 
 Build system: a plain Makefile (gcc/clang, no other dependency). There's
-no full machine to run yet — Phases 1-3 built the 6502 CPU core, the
-real C64 memory map/PLA bank-switching, and the MOS 6526 CIA (×2) +
-keyboard matrix + joystick, with tests for each. None of the chips are
-wired into the bus/CPU together yet — that's Phase 6.
+no full machine to run yet — Phases 1-4 built the 6502 CPU core, the
+real C64 memory map/PLA bank-switching, the MOS 6526 CIA (×2) +
+keyboard matrix + joystick, and the PAL VIC-II, with tests for each.
+None of the chips are wired into the bus/CPU together yet — that's
+Phase 6.
 
 ```sh
 make            # builds and runs the hand-written unit test suite
-make unit-test  # same (CPU + memory map + CIA + keyboard, no ROMs needed)
+make unit-test  # same (CPU + memory map + CIA + keyboard + VIC-II, no ROMs needed)
 
 make fetch-dormann  # fetches Klaus Dormann's 6502 functional test suite
                     # on demand (GPLv3, never vendored into this repo)
@@ -94,11 +97,12 @@ make integration    # real-ROM tier -- needs scripts/stage_roms.sh run
 ```
 
 All three currently pass (or, for `integration`, SKIP cleanly with no
-ROMs staged): 184 hand-written unit-test assertions (70 CPU + 40 memory
-map + 59 CIA + 15 keyboard/joystick), and the full Dormann suite (traps
-at its documented success address, `$3469`, after 96,241,367 cycles).
-See `docs/6502-reference.md`, `docs/memory-map.md`, `docs/cia.md`, and
-`docs/testing-strategy.md` for details.
+ROMs staged): 208 hand-written unit-test assertions (70 CPU + 40 memory
+map + 59 CIA + 15 keyboard/joystick + 24 VIC-II), and the full Dormann
+suite (traps at its documented success address, `$3469`, after
+96,241,367 cycles). See `docs/6502-reference.md`, `docs/memory-map.md`,
+`docs/cia.md`, `docs/vic-ii.md`, and `docs/testing-strategy.md` for
+details.
 
 **Keep this section current as each phase lands** — a README describing
 an aspiration instead of what actually works is worse than a short "not
