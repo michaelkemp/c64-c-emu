@@ -32,11 +32,15 @@ void c64memory_init(C64Memory *mem) {
     mem->cpu_port_ddr = 0x00;
     mem->cpu_port_data = 0x00;
     mem->vic = NULL;
+    mem->cia1 = NULL;
+    mem->cia2 = NULL;
+    mem->sid = NULL;
 }
 
-void c64memory_attach_vic(C64Memory *mem, VicII *vic) {
-    mem->vic = vic;
-}
+void c64memory_attach_vic(C64Memory *mem, VicII *vic) { mem->vic = vic; }
+void c64memory_attach_cia1(C64Memory *mem, Cia *cia1) { mem->cia1 = cia1; }
+void c64memory_attach_cia2(C64Memory *mem, Cia *cia2) { mem->cia2 = cia2; }
+void c64memory_attach_sid(C64Memory *mem, Sid *sid) { mem->sid = sid; }
 
 static bool load_rom_file(uint8_t *dest, size_t expected_size, const char *path) {
     FILE *f = fopen(path, "rb");
@@ -96,7 +100,11 @@ static uint8_t io_read(C64Memory *mem, uint16_t addr) {
         return 0;
     }
     if (addr <= 0xD7FFu) {
-        return 0; /* SID -- Phase 5 */
+        /* SID registers repeat every 32 bytes -- see docs/sid.md. */
+        if (mem->sid != NULL) {
+            return sid_read(mem->sid, (uint8_t)((addr - 0xD400u) & 0x1Fu));
+        }
+        return 0;
     }
     if (addr <= 0xDBFFu) {
         /* Color RAM: only the low nibble is real; the high nibble is
@@ -106,10 +114,18 @@ static uint8_t io_read(C64Memory *mem, uint16_t addr) {
         return mem->color_ram[addr - 0xD800u] & 0x0Fu;
     }
     if (addr <= 0xDCFFu) {
-        return 0; /* CIA 1 -- Phase 3 */
+        /* CIA register mirroring: "the low byte only actually decodes,
+         * mirrored 16x" -- see docs/cia.md. */
+        if (mem->cia1 != NULL) {
+            return cia_read(mem->cia1, (uint8_t)(addr & 0x0Fu));
+        }
+        return 0;
     }
     if (addr <= 0xDDFFu) {
-        return 0; /* CIA 2 -- Phase 3 */
+        if (mem->cia2 != NULL) {
+            return cia_read(mem->cia2, (uint8_t)(addr & 0x0Fu));
+        }
+        return 0;
     }
     return 0; /* $DE00-$DFFF: cartridge I/O areas 1/2, unused for a generic setup -- Phase 8 */
 }
@@ -121,8 +137,26 @@ static void io_write(C64Memory *mem, uint16_t addr, uint8_t value) {
         }
         return;
     }
+    if (addr <= 0xD7FFu) {
+        if (mem->sid != NULL) {
+            sid_write(mem->sid, (uint8_t)((addr - 0xD400u) & 0x1Fu), value);
+        }
+        return;
+    }
     if (addr >= 0xD800u && addr <= 0xDBFFu) {
         mem->color_ram[addr - 0xD800u] = value & 0x0Fu;
+        return;
+    }
+    if (addr <= 0xDCFFu) {
+        if (mem->cia1 != NULL) {
+            cia_write(mem->cia1, (uint8_t)(addr & 0x0Fu), value);
+        }
+        return;
+    }
+    if (addr <= 0xDDFFu) {
+        if (mem->cia2 != NULL) {
+            cia_write(mem->cia2, (uint8_t)(addr & 0x0Fu), value);
+        }
         return;
     }
     /* Every other I/O register is unimplemented until its own phase --

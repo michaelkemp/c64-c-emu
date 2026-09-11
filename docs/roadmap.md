@@ -217,23 +217,31 @@ Owes: `docs/sid.md`.
       own Appendix A table, ticked for one simulated second, counting
       accumulator-overflow "wraps" — landed exactly on 440.
 
-## Phase 6 — The real machine: cycle interleaving + IRQ/NMI
+## Phase 6 — The real machine: cycle interleaving + IRQ/NMI (done)
 
 Owes: `docs/machine.md` (already written this pass).
 
-- [ ] Wire CPU + Bus + both CIAs + VIC-II + SID together, driven by real
+- [x] Wire CPU + Bus + both CIAs + VIC-II + SID together, driven by real
       elapsed PHI2 cycles, with correct IRQ (level-triggered, OR of both
       CIAs and the VIC-II raster interrupt) and NMI (edge-triggered)
-      delivery.
-- [ ] Real-time pacing strategy decided and implemented (see
+      delivery. `src/c64/machine.h`/`.c`; 20 unit tests in
+      `tests/unit/test_machine.c`. This surfaced and fixed a genuine,
+      latent Phase 1 CPU bug in interrupt entry — see `docs/machine.md`.
+- [x] Real-time pacing strategy decided and implemented (see
       `docs/machine.md`'s "Real-time pacing" section — the recommended
       approach is letting the audio output device's own real playback
       rate be the master clock once Phase 7 exists, with a host
-      high-resolution timer as the pre-audio fallback).
-- [ ] Verification target: booting the real KERNAL+BASIC and watching
+      high-resolution timer as the pre-audio fallback). **Decided:
+      host high-resolution timer** (`machine_run_realtime()`), since
+      Phase 7's audio device doesn't exist yet; revisit once it does.
+- [x] Verification target: booting the real KERNAL+BASIC and watching
       its own real jiffy-clock counter (`$A0`-`$A2`) actually increment
       at the correct real-world rate once BASIC reaches its
-      keyboard-wait loop.
+      keyboard-wait loop. `tests/integration/test_jiffy_clock.c`,
+      confirmed against the user's own staged ROMs: PASS, and it
+      empirically settled two real facts along the way (big-endian
+      `$A0`-`$A2` byte order, and the real ~60Hz/16421-cycle Timer A
+      reload) — see `docs/cia.md` and `docs/sources.md`.
 
 ## Phase 7 — Peripherals (SDL2): screen, keyboard, audio, joystick
 

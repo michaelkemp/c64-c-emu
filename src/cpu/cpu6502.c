@@ -1042,6 +1042,18 @@ static void step_brk(Cpu6502 *cpu) {
         cpu->pc = cpu->addr;
         cpu->mid_instruction = false;
         cpu->servicing_interrupt = false;
+        /* This sequence just forced the real I flag to 1 (case 4). The
+         * CLI/SEI/PLP one-instruction-delay mechanism only applies to
+         * those three specific opcodes -- entering interrupt service
+         * is not one of them, so its effect on I must be visible to
+         * the very next poll immediately. Without this, a source that
+         * doesn't clear itself in the handler (e.g. nothing has read
+         * the CIA/VIC-II interrupt register yet) would make the CPU
+         * re-enter service forever without ever executing the
+         * handler's own first instruction, since the next poll would
+         * otherwise see a stale, pre-interrupt I value and immediately
+         * take another "interrupt" instead of fetching real code. */
+        cpu->i_flag_before_instruction = true;
         break;
     default:
         break;

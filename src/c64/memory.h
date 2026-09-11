@@ -6,6 +6,8 @@
 #include <stdint.h>
 
 #include "../bus.h"
+#include "cia.h"
+#include "sid.h"
 #include "vic_ii.h"
 
 /* The real C64 address space: RAM everywhere underneath, with the
@@ -44,11 +46,22 @@ typedef struct C64Memory {
      * Phase 6's real job ("wire CPU + Bus + chips together") -- see
      * CLAUDE.md's status section and tools/demos/. */
     VicII *vic;
+
+    /* Same pattern as `vic`: when attached, $DC00-$DCFF/$DD00-$DDFF/
+     * $D400-$D7FF (while I/O is switched in) dispatch to these real
+     * chip instances, including their real register mirroring, instead
+     * of the Phase 2 stub. NULL preserves the original stub. */
+    Cia *cia1;
+    Cia *cia2;
+    Sid *sid;
 } C64Memory;
 
 void c64memory_init(C64Memory *mem);
 
 void c64memory_attach_vic(C64Memory *mem, VicII *vic);
+void c64memory_attach_cia1(C64Memory *mem, Cia *cia1);
+void c64memory_attach_cia2(C64Memory *mem, Cia *cia2);
+void c64memory_attach_sid(C64Memory *mem, Sid *sid);
 
 /* Load a real ROM dump the user staged via scripts/stage_roms.sh into
  * gitignored roms/c64/ -- this project never fetches or vendors these

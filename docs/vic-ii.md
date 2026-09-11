@@ -281,7 +281,9 @@ see Known Gaps).
    and first-collision-only-raises-IRQ semantics) directly against the
    `VicII` struct/framebuffer. Not yet exercised via an actual
    hand-assembled 6502 program moving a sprite across the border in
-   real time — that needs Phase 6's machine loop.
+   real time — Phase 6's machine loop now exists (`src/c64/machine.c`)
+   so this is unblocked, but the actual hand-assembled test program
+   hasn't been written yet.
 
 ## Known gaps to disclose as you build
 
@@ -324,7 +326,10 @@ see Known Gaps).
   disclosed initialization choice, not a fact stated by the article
   (which doesn't document a power-on default for this internal,
   non-register state) — see `src/c64/vic_ii.c`.
-- Not yet wired into `src/c64/memory.c`'s I/O dispatch, the CPU's IRQ
-  line, or CIA2's bank-select bits — deliberately deferred to Phase 6,
-  same pattern as Phase 3's CIA/keyboard modules (see `docs/cia.md`'s
-  status section for the reasoning).
+- **Wired in Phase 6**: `src/c64/machine.c`'s `machine_cycle()` runs
+  `vic_ii_cycle()` every PHI2 cycle (stealing the bus from the CPU when
+  it must), ORs the VIC-II's raster IRQ into the shared IRQ line
+  alongside both CIAs, and re-derives the VIC-II's bank from CIA2 Port
+  A every cycle (`tests/unit/test_machine.c`'s
+  `test_vic_bank_follows_cia2_port_a` and
+  `test_vic_raster_irq_interrupts_running_cpu` cover this).

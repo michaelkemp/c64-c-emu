@@ -9,18 +9,21 @@ real commercial software, keeping up with the real PAL clock rate.
 
 ## Status
 
-**Phases 1-5 are done** (6502 CPU core; C64 memory map/PLA bank-
+**Phases 1-6 are done** (6502 CPU core; C64 memory map/PLA bank-
 switching; the MOS 6526 CIA ×2, keyboard matrix, and joystick;
-PAL VIC-II; the MOS 6581 SID) — **Phase 6 (the real machine loop) is
-next.** Read `CLAUDE.md` first, then `docs/roadmap.md` for the phase-
-by-phase build order. Phases 2 and 4's real-ROM verification targets
-are genuinely done (see `docs/memory-map.md`'s and `docs/vic-ii.md`'s
-status sections) — Phase 3's keyboard-matrix empirical cross-check is
-still open since it needs Phase 6's CIA bus wiring first (see
-`docs/cia.md`'s status section). None of the built chips are wired
-together into one running machine yet — that's Phase 6 (VIC-II is a
-partial exception: see `tools/demos/`). Real ROMs are never staged,
-used, or committed by this repo itself — see "Getting the ROMs" below.
+PAL VIC-II; the MOS 6581 SID; and now the real machine loop wiring
+all of it together) — **Phase 7 (SDL2 peripherals) is next.** Read
+`CLAUDE.md` first, then `docs/roadmap.md` for the phase-by-phase build
+order. Phases 2, 4, and 6's real-ROM verification targets are
+genuinely done (see `docs/memory-map.md`'s, `docs/vic-ii.md`'s, and
+`docs/machine.md`'s status sections) — running the real KERNAL through
+Phase 6's interleaved loop surfaced and fixed a genuine, latent Phase 1
+CPU interrupt-handling bug, and empirically confirmed the real jiffy
+clock's byte order and true ~60Hz rate (see `docs/machine.md`). Phase
+3's keyboard-matrix empirical cross-check is now unblocked by Phase
+6's CIA bus wiring but still open (see `docs/cia.md`'s status section).
+Real ROMs are never staged, used, or committed by this repo itself —
+see "Getting the ROMs" below.
 
 ## Why this project exists
 
@@ -87,11 +90,12 @@ owned ROMs locally is your own call to make.
 ## Building and running
 
 Build system: a plain Makefile (gcc/clang, no other dependency; links
-`-lm` for the SID's filter). There's no full machine to run yet —
-Phases 1-5 built the 6502 CPU core, the real C64 memory map/PLA bank-
-switching, the MOS 6526 CIA (×2) + keyboard matrix + joystick, the PAL
-VIC-II, and the MOS 6581 SID, with tests for each. None of the chips
-are wired into the bus/CPU together yet — that's Phase 6.
+`-lm` for the SID's filter). Phases 1-6 built the 6502 CPU core, the
+real C64 memory map/PLA bank-switching, the MOS 6526 CIA (×2) +
+keyboard matrix + joystick, the PAL VIC-II, the MOS 6581 SID, and now
+`Machine` (`src/c64/machine.c`), which wires all of it into one real,
+cycle-interleaved, IRQ/NMI-driven machine with real-time pacing — see
+`docs/machine.md`.
 
 ```sh
 make            # builds and runs the hand-written unit test suite
@@ -103,7 +107,8 @@ make dormann        # builds and runs it against the CPU core
 
 make integration    # real-ROM tier -- needs scripts/stage_roms.sh run
                     # first with your own dumps; SKIPs (not a failure)
-                    # if they aren't staged
+                    # if they aren't staged. Includes test_jiffy_clock.c,
+                    # Phase 6's own verification target.
 
 make demo           # ad-hoc visual smoke test (needs ca65/ld65 from the
                     # cc65 suite) -- runs a small self-contained 6502
@@ -117,13 +122,15 @@ make demo-real-rom  # same idea, but boots YOUR OWN staged real ROMs
 ```
 
 All three test tiers currently pass (or, for `integration`, SKIP
-cleanly with no ROMs staged): 232 hand-written unit-test assertions
+cleanly with no ROMs staged): 252 hand-written unit-test assertions
 (70 CPU + 40 memory map + 59 CIA + 15 keyboard/joystick + 24 VIC-II +
-24 SID), and the full Dormann suite (traps at its documented success
-address, `$3469`, after 96,241,367 cycles). See
+24 SID + 20 machine), and the full Dormann suite (traps at its
+documented success address, `$3469`, after 96,241,367 cycles). With
+real ROMs staged, both `tests/integration/test_boot.c` and
+`tests/integration/test_jiffy_clock.c` pass too. See
 `docs/6502-reference.md`, `docs/memory-map.md`, `docs/cia.md`,
-`docs/vic-ii.md`, `docs/sid.md`, and `docs/testing-strategy.md` for
-details.
+`docs/vic-ii.md`, `docs/sid.md`, `docs/machine.md`, and
+`docs/testing-strategy.md` for details.
 
 `make demo` is the fastest way to actually *see* something: it renders
 real "HELLO C64" text plus a raster-split border effect, entirely

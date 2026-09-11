@@ -132,3 +132,38 @@ roughly the phase order it was needed.
   The 23-bit figure is separately, correctly true of the *noise LFSR*,
   a genuinely different register — the secondary source's error was
   applying that same number to the accumulator too.
+
+## Phase 6 — the machine (cycle interleaving, IRQ/NMI, real-time pacing)
+
+- **The user's own staged real KERNAL/BASIC/Character ROM dumps**
+  (`scripts/stage_roms.sh`, from the user's own legitimately-owned
+  copy — see `CLAUDE.md`'s license discipline; never fetched or
+  vendored by this project) — used as a primary source in its own
+  right for two empirical facts about real KERNAL behavior that no
+  datasheet documents, since they're KERNAL software behavior, not
+  chip hardware behavior:
+  - **The jiffy clock at `$A0`-`$A2` is big-endian**: `$A0` is the high
+    byte, `$A2` is the low byte. Confirmed by observing which single
+    byte actually increments once per real tick against a running real
+    boot (`tests/integration/test_jiffy_clock.c`) — the more
+    "natural"-looking assumption (`$A0` low, ascending) was tried
+    first and shown wrong by a `delta = 6553600 = 100 * 65536` result
+    (a low-byte read would have shown `delta = 100` directly).
+  - **The real jiffy-clock CIA1 Timer A reload is 16421 PHI2 cycles
+    (~60.00Hz on this project's own PAL clock constant)**, not tied to
+    the PAL video frame rate (~50.125Hz) at all — because the KERNAL
+    ROM image, and so this hardcoded reload constant, is shared
+    unchanged between PAL and NTSC hardware. See `docs/cia.md`. Also
+    surfaced along the way: the staged KERNAL briefly runs a much
+    shorter, different Timer A configuration during its own early
+    self-test (before the CPU's `I` flag is even clear), which is
+    *not* the real, settled jiffy-clock setup — a lesson in not
+    trusting the first internal-register configuration observed as
+    "the" configuration; the test instead watches the jiffy-clock bytes
+    themselves change, then measures against whatever reload value is
+    actually driving that specific observed tick.
+  - Both facts were discovered empirically (by running the real ROM
+    and observing behavior), not asserted in advance and merely
+    confirmed — see `docs/machine.md`'s IRQ/NMI section for how this
+    same real-ROM run also caught a genuine Phase 1 CPU bug that had
+    never manifested in any earlier phase's own synthetic tests.

@@ -186,12 +186,11 @@ was first built on; either was acceptable per the roadmap.
 - [~] **Phase 3** — MOS 6526 CIA (×2) + keyboard matrix + joystick:
       done and unit-tested (74 assertions, all synthetic), sourced
       directly from the primary datasheet — see `src/c64/cia.c`,
-      `src/c64/keyboard.c`, `docs/cia.md`, `docs/sources.md`. Not wired
-      into the bus/CPU yet (deliberately deferred to Phase 6, see
-      `docs/cia.md`'s status section); the keyboard-matrix-layout
-      empirical cross-check specifically still needs that wiring plus
-      real keypress-to-KERNAL-character verification, so it remains open
-      even now that real ROMs are available locally.
+      `src/c64/keyboard.c`, `docs/cia.md`, `docs/sources.md`. Wired into
+      the bus/CPU in Phase 6. The keyboard-matrix-layout empirical
+      cross-check (driving each of the 64 matrix positions through the
+      real KERNAL's own character-input routine) is now unblocked but
+      still open — see `docs/cia.md`'s status section.
 - [x] **Phase 4** — VIC-II (PAL/6569): done and unit-tested (24
       assertions, all synthetic), sourced directly from Christian
       Bauer's primary cycle-by-cycle article — see `src/c64/vic_ii.c`,
@@ -217,9 +216,25 @@ was first built on; either was acceptable per the roadmap.
       simplification of the real non-linear shape), and a simple
       documented-approximation filter (not reSID's transistor-level
       model). Verified against the datasheet's own Appendix A frequency
-      table (440Hz test, landed exactly on target). Not wired into the
-      bus/CPU or an audio device yet (deliberately deferred to Phase 6/7,
-      same pattern as the CIA/VIC-II).
+      table (440Hz test, landed exactly on target). Wired into the bus
+      in Phase 6; still no actual audio output device (Phase 7).
+- [x] **Phase 6** — The real machine: CPU + `C64Memory` + both CIAs +
+      VIC-II + SID driven together by one true per-cycle interleaved
+      loop, with real IRQ (level, OR of both CIAs + VIC-II raster) and
+      NMI (edge, from CIA2) delivery, and real-time pacing against a
+      host monotonic clock — see `src/c64/machine.c`, `docs/machine.md`.
+      20 unit-test assertions (`tests/unit/test_machine.c`, all
+      synthetic) plus a real-ROM integration test
+      (`tests/integration/test_jiffy_clock.c`). **This phase surfaced
+      and fixed a genuine, latent Phase 1 CPU bug** in interrupt-entry
+      handling (`i_flag_before_instruction` wasn't updated on IRQ/NMI/
+      BRK entry, causing an unacknowledged interrupt source to re-enter
+      service forever) — see `docs/machine.md`'s IRQ/NMI section. Also
+      empirically confirmed, against the user's own staged real ROMs,
+      that the jiffy clock at `$A0`-`$A2` is big-endian and that the
+      real jiffy rate is a fixed ~60Hz (16421-cycle Timer A reload)
+      unrelated to the PAL video rate — see `docs/cia.md`,
+      `docs/sources.md`.
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

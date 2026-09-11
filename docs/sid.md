@@ -189,9 +189,10 @@ the oscillator's own frequency.
   reads 0; no paddle input exists in this project.
 - Digi-playback via pure DC-offset riding (no oscillator) — a permanent
   gap under a linear volume model, as described above.
-- Not yet wired into `src/c64/memory.c`'s I/O dispatch or an actual
-  audio output device — deliberately deferred to Phase 6 (bus wiring)
-  and Phase 7 (SDL2 audio callback), same pattern as Phase 3/4's chips.
+- **Bus wiring done in Phase 6** (`c64memory_attach_sid()`, ticked
+  every PHI2 cycle from `src/c64/machine.c`'s `machine_cycle()`) — no
+  actual audio output device yet, still deferred to Phase 7 (SDL2
+  audio callback).
 - External audio input (`EXT IN`, the `FILTEX`/"3 OFF" mixing path) is
   not modeled — there's no external audio source to mix in this
   project.

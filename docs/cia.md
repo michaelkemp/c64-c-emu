@@ -73,6 +73,22 @@ for "does my timer implementation actually work," since a wrong timer
 means the boot screen's clock-driven behavior (cursor blink, keyboard
 repeat/debounce) will be visibly wrong.
 
+**Verified empirically in Phase 6** against the user's own staged real
+KERNAL (see `docs/machine.md`, `docs/sources.md`,
+`tests/integration/test_jiffy_clock.c`): the settled Timer A reload is
+**16421 PHI2 cycles ≈ 60.00Hz**, on this PAL-clocked emulator, using
+the same PAL crystal-derived `C64_PAL_PHI2_HZ` as everything else in
+this project. That confirms the "not exactly tied to the video
+standard" caveat above as fact rather than hedge: the real jiffy rate
+is a fixed ~60Hz **on both PAL and NTSC machines**, because it's the
+same KERNAL ROM image and its own hardcoded Timer A reload value
+driving both — the video frame rate (~50.125Hz PAL) is irrelevant to
+it. (The staged KERNAL also briefly runs a different, much shorter
+Timer A configuration during its own early self-test, before the CPU's
+`I` flag is even clear — don't mistake that transient setup for the
+real, settled jiffy-clock configuration; see the integration test's own
+comments for how it avoids that trap.)
+
 ## ICR (interrupt control register) semantics
 
 Reading the ICR returns which interrupt sources are currently flagged
@@ -167,6 +183,17 @@ advances at the correct real-world rate once BASIC reaches its
 keyboard-wait loop, and a synthetic keypress on each of the 64 matrix
 positions produces the real KERNAL's own correct character back.
 
+**Jiffy-clock half done** (Phase 6, see above): rate confirmed against
+the real KERNAL. **Keyboard-matrix-layout empirical cross-check still
+open** — Phase 6 wired `KeyboardMatrix`/`Joystick` into CIA1 for real
+(`tests/unit/test_machine.c`'s `test_keyboard_matrix_wiring_through_
+cia1` confirms the *wiring* — a synthetic key press reaches CIA1 Port
+B correctly through `Machine`), which unblocks this check but doesn't
+itself perform it: driving each of the 64 matrix positions through the
+real KERNAL's own character-input routine and confirming the reported
+character is still open, deliberately deferred rather than done as a
+side effect of Phase 6.
+
 ## Implementation status (Phase 3, done)
 
 `src/c64/cia.c` implements one `Cia` module (ports, all four timer run-
@@ -183,19 +210,16 @@ write nuances, ICR mask-write/read-clear semantics, and TOD's BCD
 rollover (tenths→seconds→minutes→hours with the 12/AM-PM quirk),
 latching, and stop/start-on-register-write behavior.
 
-**Not done in Phase 3, deliberately deferred to Phase 6**: wiring
+**Done in Phase 6** (was deliberately deferred from Phase 3): wiring
 `Cia`/`KeyboardMatrix`/`Joystick` instances into `src/c64/memory.c`'s
-`$DC00-$DDFF` I/O dispatch (currently still Phase 2's stub, returning
-0/ignoring writes) and into the CPU's IRQ/NMI lines. The roadmap frames
-"wire CPU + Bus + both CIAs + VIC-II + SID together" as Phase 6's own
-job precisely so this doesn't get partially rewired three separate
-times as VIC-II and SID land in Phases 4-5 too.
+`$DC00-$DDFF`/`$DD00-$DDFF` I/O dispatch and into the CPU's IRQ/NMI
+lines, via `src/c64/machine.c`'s `machine_cycle()` — see
+`docs/machine.md`. Both CIA1 keyboard/joystick wiring and CIA2's Port A
+→ VIC-II bank selection are covered by `tests/unit/test_machine.c`.
 
-**Not done at all yet, blocked on real ROMs**: this doc's own
-Verification target below (booting the real KERNAL) — same blocker as
-Phase 2's `tests/integration/test_boot.c`, see `docs/memory-map.md`'s
-status section. In particular the keyboard-matrix-layout empirical
-cross-check described above needs this.
+**Still open, blocked on the keyboard-matrix-layout empirical
+cross-check itself** (now unblocked by the above, not yet performed):
+see this doc's own Verification target below.
 
 ## Known gaps to disclose as you build
 
