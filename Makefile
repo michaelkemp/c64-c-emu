@@ -23,12 +23,13 @@
 
 CC := gcc
 CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O2 -g -Isrc
+LDLIBS := -lm
 BUILD_DIR := build
 
 # Every module lands here as its own phase's chip/subsystem gets built --
 # see CLAUDE.md's repo map.
-CORE_SRCS := src/cpu/cpu6502.c src/c64/memory.c src/c64/cia.c src/c64/keyboard.c src/c64/vic_ii.c src/c64/palette.c
-CORE_HDRS := src/bus.h src/cpu/cpu6502.h src/c64/memory.h src/c64/cia.h src/c64/keyboard.h src/c64/vic_ii.h src/c64/palette.h
+CORE_SRCS := src/cpu/cpu6502.c src/c64/memory.c src/c64/cia.c src/c64/keyboard.c src/c64/vic_ii.c src/c64/palette.c src/c64/sid.c
+CORE_HDRS := src/bus.h src/cpu/cpu6502.h src/c64/memory.h src/c64/cia.h src/c64/keyboard.h src/c64/vic_ii.h src/c64/palette.h src/c64/sid.h
 
 # One self-contained test binary per tests/unit/test_*.c file (each has
 # its own main()), sharing the tiny test framework in testutil.c.
@@ -55,7 +56,7 @@ $(BUILD_DIR) $(BUILD_DIR)/unit $(BUILD_DIR)/integration:
 	mkdir -p $@
 
 $(BUILD_DIR)/unit/%: tests/unit/%.c $(UNIT_TEST_SUPPORT_SRC) $(CORE_SRCS) $(CORE_HDRS) tests/unit/testutil.h | $(BUILD_DIR)/unit
-	$(CC) $(CFLAGS) $< $(UNIT_TEST_SUPPORT_SRC) $(CORE_SRCS) -o $@
+	$(CC) $(CFLAGS) $< $(UNIT_TEST_SUPPORT_SRC) $(CORE_SRCS) -o $@ $(LDLIBS)
 
 unit-test: $(UNIT_TEST_BINS)
 	@for bin in $(UNIT_TEST_BINS); do \
@@ -73,13 +74,13 @@ $(DORMANN_BIN): $(DORMANN_RUNNER_SRC) $(CORE_SRCS) $(CORE_HDRS) | $(BUILD_DIR)
 		echo "Dormann suite not fetched yet -- run 'make fetch-dormann' first." >&2; \
 		exit 1; \
 	fi
-	$(CC) $(CFLAGS) $(DORMANN_RUNNER_SRC) $(CORE_SRCS) -o $@
+	$(CC) $(CFLAGS) $(DORMANN_RUNNER_SRC) $(CORE_SRCS) -o $@ $(LDLIBS)
 
 dormann: $(DORMANN_BIN)
 	./$(DORMANN_BIN) $(DORMANN_TEST_BINARY)
 
 $(BUILD_DIR)/integration/%: tests/integration/%.c $(CORE_SRCS) $(CORE_HDRS) | $(BUILD_DIR)/integration
-	$(CC) $(CFLAGS) $< $(CORE_SRCS) -o $@
+	$(CC) $(CFLAGS) $< $(CORE_SRCS) -o $@ $(LDLIBS)
 
 integration: $(INTEGRATION_BINS)
 	@for bin in $(INTEGRATION_BINS); do \
@@ -101,7 +102,7 @@ $(DEMO_BIN): $(DEMO_ASM) $(DEMO_CFG) | $(BUILD_DIR)
 	ld65 -C $(DEMO_CFG) $(BUILD_DIR)/hello_c64.o -o $(DEMO_BIN)
 
 $(DEMO_TOOL_BIN): $(DEMO_DIR)/framebuffer_dump.c $(CORE_SRCS) $(CORE_HDRS) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(DEMO_DIR)/framebuffer_dump.c $(CORE_SRCS) -o $@
+	$(CC) $(CFLAGS) $(DEMO_DIR)/framebuffer_dump.c $(CORE_SRCS) -o $@ $(LDLIBS)
 
 demo: $(DEMO_BIN) $(DEMO_TOOL_BIN)
 	./$(DEMO_TOOL_BIN) $(DEMO_BIN) C000 $(DEMO_OUT_PPM) 3

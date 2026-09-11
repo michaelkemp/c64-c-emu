@@ -96,7 +96,7 @@ it's written down.
 
 - `make unit-test` (or just `make`) — builds and runs every hand-written
   unit test in `tests/unit/` (CPU, memory map, CIA, keyboard/joystick,
-  VIC-II), no ROMs needed. This is "the free tier": a fresh clone with
+  VIC-II, SID), no ROMs needed. This is "the free tier": a fresh clone with
   nothing but the source and a C compiler can run it.
 - `make fetch-dormann` — runs `scripts/fetch_dormann_tests.sh` (fetches
   the GPLv3 Klaus Dormann suite on demand into gitignored

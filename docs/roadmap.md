@@ -187,20 +187,34 @@ driven by the main loop's cycle interleaving from Phase 1/6's design,
 
 Owes: `docs/sid.md`.
 
-- [ ] Three oscillators (triangle/sawtooth/pulse/noise), ADSR envelope
+- [x] Three oscillators (triangle/sawtooth/pulse/noise), ADSR envelope
       generators (per the datasheet's documented rate tables), hard
-      sync, ring modulation, and a filter.
-- [ ] **Filter and combined-waveform fidelity**: reSID's own
+      sync, ring modulation, and a filter. See `src/c64/sid.c`, sourced
+      directly from the primary datasheet (`docs/sources.md`) —
+      including catching a real accumulator-width error (23 vs. 24 bit)
+      in a secondary source used only for the bit-level waveform
+      algorithm, resolved via the datasheet's own frequency equation.
+- [x] **Filter and combined-waveform fidelity**: reSID's own
       transistor-level modeling is the real state of the art here, but
       it's GPL — per `CLAUDE.md`'s license discipline, don't vendor its
       tables/logic. A simpler documented-approximation filter/combined-
       waveform model is an acceptable, disclosed gap; write it up as one
       in `docs/sid.md` rather than silently shipping something that
-      merely sounds plausible.
-- [ ] Verification target: a hand-assembled test program poking a known
+      merely sounds plausible. **Done**: combined waveforms use the
+      datasheet's own documented AND-combination rule; the filter is a
+      generic Chamberlin state-variable design at an assumed nominal
+      sample rate — see `docs/sid.md`'s Oscillators/Filter sections for
+      the full disclosure, including that ADSR decay/release uses a
+      linear (not real hardware's non-linear) ramp shape.
+- [x] Verification target: a hand-assembled test program poking a known
       frequency (e.g. 440Hz) produces output measurably at that
       frequency (zero-crossing count or FFT peak against the rendered
       samples) — a concrete, falsifiable check, not "it makes a sound."
+      **Done** as a direct register-write equivalent (Phase 6's machine
+      loop doesn't exist yet to run a real hand-assembled 6502 program
+      against): `Fn=7382` for 440Hz taken directly from the datasheet's
+      own Appendix A table, ticked for one simulated second, counting
+      accumulator-overflow "wraps" — landed exactly on 440.
 
 ## Phase 6 — The real machine: cycle interleaving + IRQ/NMI
 

@@ -147,6 +147,8 @@ src/
     vic_ii.c              # sourced directly from Bauer's cycle-by-cycle article, see docs/sources.md
     palette.h             # VIC-II's 16-color palette as RGB8 (a disclosed approximation, see docs/sources.md)
     palette.c
+    sid.h                 # MOS 6581 SID: oscillators, ADSR, filter (Phase 5)
+    sid.c                 # sourced directly from the primary datasheet, see docs/sources.md
 tests/
   unit/                 # hand-written unit tests (CPU + memory map), no ROMs needed
   dormann/              # runs the fetched Dormann suite against the CPU core
@@ -206,6 +208,16 @@ was first built on; either was acceptable per the roadmap.
       because there was otherwise no way to see whether the VIC-II
       actually renders anything correct; it is not those phases
       themselves.
+- [~] **Phase 5** — MOS 6581 SID: done and unit-tested (24 assertions),
+      sourced directly from the primary datasheet — see `src/c64/sid.c`,
+      `docs/sid.md`, `docs/sources.md`. All four oscillators, hard sync,
+      ring mod, ADSR (linear decay/release ramp — a disclosed
+      simplification of the real non-linear shape), and a simple
+      documented-approximation filter (not reSID's transistor-level
+      model). Verified against the datasheet's own Appendix A frequency
+      table (440Hz test, landed exactly on target). Not wired into the
+      bus/CPU or an audio device yet (deliberately deferred to Phase 6/7,
+      same pattern as the CIA/VIC-II).
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

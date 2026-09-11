@@ -9,14 +9,16 @@ real commercial software, keeping up with the real PAL clock rate.
 
 ## Status
 
-**Phases 1-4 are done** (6502 CPU core; C64 memory map/PLA bank-
+**Phases 1-5 are done** (6502 CPU core; C64 memory map/PLA bank-
 switching; the MOS 6526 CIA ×2, keyboard matrix, and joystick;
-PAL VIC-II) — **Phase 5 (SID) is next.** Read `CLAUDE.md` first, then
-`docs/roadmap.md` for the phase-by-phase build order. Note: Phases 2-4
-each have a real-ROM verification step blocked on the user staging
-their own ROM dumps (see `docs/memory-map.md`'s, `docs/cia.md`'s, and
-`docs/vic-ii.md`'s status sections), and none of the built chips are
-wired together into one running machine yet — that's Phase 6.
+PAL VIC-II; the MOS 6581 SID) — **Phase 6 (the real machine loop) is
+next.** Read `CLAUDE.md` first, then `docs/roadmap.md` for the phase-
+by-phase build order. Note: Phases 2-4 each have a real-ROM
+verification step blocked on the user staging their own ROM dumps (see
+`docs/memory-map.md`'s, `docs/cia.md`'s, and `docs/vic-ii.md`'s status
+sections), and none of the built chips are wired together into one
+running machine yet — that's Phase 6 (VIC-II is a partial exception:
+see `tools/demos/`).
 
 ## Why this project exists
 
@@ -76,16 +78,16 @@ they're absent, which is the default state of a fresh clone.
 
 ## Building and running
 
-Build system: a plain Makefile (gcc/clang, no other dependency). There's
-no full machine to run yet — Phases 1-4 built the 6502 CPU core, the
-real C64 memory map/PLA bank-switching, the MOS 6526 CIA (×2) +
-keyboard matrix + joystick, and the PAL VIC-II, with tests for each.
-None of the chips are wired into the bus/CPU together yet — that's
-Phase 6.
+Build system: a plain Makefile (gcc/clang, no other dependency; links
+`-lm` for the SID's filter). There's no full machine to run yet —
+Phases 1-5 built the 6502 CPU core, the real C64 memory map/PLA bank-
+switching, the MOS 6526 CIA (×2) + keyboard matrix + joystick, the PAL
+VIC-II, and the MOS 6581 SID, with tests for each. None of the chips
+are wired into the bus/CPU together yet — that's Phase 6.
 
 ```sh
 make            # builds and runs the hand-written unit test suite
-make unit-test  # same (CPU + memory map + CIA + keyboard + VIC-II, no ROMs needed)
+make unit-test  # same (CPU + memory map + CIA + keyboard + VIC-II + SID, no ROMs needed)
 
 make fetch-dormann  # fetches Klaus Dormann's 6502 functional test suite
                     # on demand (GPLv3, never vendored into this repo)
@@ -103,12 +105,13 @@ make demo           # ad-hoc visual smoke test (needs ca65/ld65 from the
 ```
 
 All three test tiers currently pass (or, for `integration`, SKIP
-cleanly with no ROMs staged): 208 hand-written unit-test assertions
-(70 CPU + 40 memory map + 59 CIA + 15 keyboard/joystick + 24 VIC-II),
-and the full Dormann suite (traps at its documented success address,
-`$3469`, after 96,241,367 cycles). See `docs/6502-reference.md`,
-`docs/memory-map.md`, `docs/cia.md`, `docs/vic-ii.md`, and
-`docs/testing-strategy.md` for details.
+cleanly with no ROMs staged): 232 hand-written unit-test assertions
+(70 CPU + 40 memory map + 59 CIA + 15 keyboard/joystick + 24 VIC-II +
+24 SID), and the full Dormann suite (traps at its documented success
+address, `$3469`, after 96,241,367 cycles). See
+`docs/6502-reference.md`, `docs/memory-map.md`, `docs/cia.md`,
+`docs/vic-ii.md`, `docs/sid.md`, and `docs/testing-strategy.md` for
+details.
 
 `make demo` is the fastest way to actually *see* something: it renders
 real "HELLO C64" text plus a raster-split border effect, entirely

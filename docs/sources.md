@@ -95,3 +95,40 @@ roughly the phase order it was needed.
   for `src/c64/palette.c`'s `VIC_PALETTE_RGB` table (needed to turn a
   VIC-II color index into something a PNG/PPM image or, later, an SDL2
   texture can actually display). See `tools/demos/README.md`.
+
+## Phase 5 — SID
+
+- **MOS 6581 SID preliminary datasheet (Oct 1982)** —
+  https://6502.org/documents/datasheets/mos/mos_6581_sid.pdf. Read in
+  full (12 pages, via PDF image extraction — same reason as the CIA
+  datasheet: it's a scanned PDF WebFetch's text conversion can't read
+  reliably). Settled: the full 29-register map; the exact ADSR rate
+  table (Table 2: all 16 attack times, all 16 decay/release times,
+  confirmed to be an exact 3:1 ratio at every index); gate/sync/ring-
+  mod/test bit semantics per voice; the filter's register layout
+  (cutoff, resonance, per-voice routing, LP/BP/HP/3-OFF mode bits,
+  volume); the frequency equation `Fout = Fn * Fclk / 16777216`; and
+  the datasheet's own explicitly documented (simplified) combined-
+  waveform behavior ("NOT additive... a logical ANDing," and that
+  combining Noise with anything else can make the Noise output "lock
+  up"). Also used Appendix A's own frequency table directly for the
+  440Hz (`Fn=7382` at 1MHz) verification test, rather than computing it
+  independently. See `docs/sid.md`.
+
+- **nim64's `ic6581/waveform` documentation** —
+  https://barandis.github.io/nim64/api/nim64/chips/ic6581/waveform.html,
+  fetched as raw page text. The official datasheet doesn't give the
+  bit-level algorithm for turning the internal phase accumulator into
+  each of the four waveforms, so this (a from-scratch, non-reSID SID
+  implementation's own documentation) was used for that structural
+  detail: the noise LFSR's exact 23-bit structure (feedback taps at
+  bits 17/22, output taken from bits 0,2,5,9,11,14,18,20, clocked by
+  the accumulator's own bit 19), and the triangle/sync mechanisms.
+  **Caught a real, worth-recording error in this source**: it describes
+  the phase accumulator itself as 23-bit, which contradicts the
+  official datasheet's own frequency equation (16777216 = 2^24, which
+  only works out with a 24-bit accumulator) — resolved in favor of the
+  primary datasheet's explicit arithmetic, not the secondary source.
+  The 23-bit figure is separately, correctly true of the *noise LFSR*,
+  a genuinely different register — the secondary source's error was
+  applying that same number to the accumulator too.
