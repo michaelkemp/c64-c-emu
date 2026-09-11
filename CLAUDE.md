@@ -124,6 +124,9 @@ docs/
                          # emulation (VIA + IEC bus) as the stretch goal
   testing-strategy.md   # how correctness gets validated at every phase,
                          # incl. the license-discipline rules above
+  sources.md            # running log of external URLs actually fetched
+                         # and read, and what each one settled -- keep
+                         # this current whenever a new source gets used
 scripts/
   fetch_dormann_tests.sh # fetches the GPLv3 Klaus Dormann suite on demand
   stage_roms.sh          # copies the user's own local ROM dumps into
@@ -136,6 +139,10 @@ src/
   c64/
     memory.h             # C64Memory: the real PLA-driven address space (Phase 2)
     memory.c             # implements docs/memory-map.md's truth table, as a Bus
+    cia.h                # MOS 6526 CIA: ports, timers, TOD, ICR (Phase 3)
+    cia.c                # sourced directly from the primary datasheet, see docs/sources.md
+    keyboard.h            # 8x8 keyboard matrix + digital joystick (Phase 3)
+    keyboard.c
 tests/
   unit/                 # hand-written unit tests (CPU + memory map), no ROMs needed
   dormann/              # runs the fetched Dormann suite against the CPU core
@@ -163,6 +170,13 @@ was first built on; either was acceptable per the roadmap.
       partially done — no real ROM dump was available to verify against
       in the session that built it; see that file's own comment and
       `docs/memory-map.md`'s "Implementation status" section.
+- [~] **Phase 3** — MOS 6526 CIA (×2) + keyboard matrix + joystick:
+      done and unit-tested (74 assertions, all synthetic), sourced
+      directly from the primary datasheet — see `src/c64/cia.c`,
+      `src/c64/keyboard.c`, `docs/cia.md`, `docs/sources.md`. Not wired
+      into the bus/CPU yet (deliberately deferred to Phase 6, see
+      `docs/cia.md`'s status section) and not empirically verified
+      against real hardware (blocked on real ROMs, same as Phase 2).
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

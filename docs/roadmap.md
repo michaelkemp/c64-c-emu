@@ -98,22 +98,33 @@ Owes: `docs/memory-map.md` (already written this pass).
 
 Owes: `docs/cia.md`.
 
-- [ ] Ports A/B, both 16-bit timers (all four run modes: one-shot,
+- [x] Ports A/B, both 16-bit timers (all four run modes: one-shot,
       continuous, count-CNT-pulses, count-underflow-of-the-other-timer),
       the TOD (time-of-day) clock, and the ICR (interrupt control
-      register) with correct IRQ-line-OR-of-both-CIAs behavior.
-- [ ] Keyboard matrix (8×8) coupled to CIA1's ports, and digital
+      register). See `src/c64/cia.c`, sourced directly from the primary
+      datasheet (`docs/sources.md`) — which also corrected this
+      checklist's own "count-CNT-pulses" framing: that mode exists for
+      **both** timers, not Timer B only (see `docs/cia.md`). The
+      IRQ-line-OR-of-both-CIAs behavior itself is Phase 6's job
+      (`cia_irq_asserted()` exists; nothing wires it to the CPU's IRQ
+      line yet).
+- [x] Keyboard matrix (8×8) coupled to CIA1's ports, and digital
       joystick coupled the same way — **the matrix layout is a real,
       disputed-in-the-community fact**: at least two commonly-cited
-      layouts disagree on some key positions. Don't trust a single
-      secondary source blindly; cross-check against the CIA/keyboard
-      datasheet and, once Phase 2's ROMs are staged, verify empirically
-      (drive each of the 64 positions in turn against the real KERNAL's
-      own `GETIN`-equivalent routine and confirm the character that
-      comes back matches what real hardware documents for that
-      position).
-- [ ] Verification target: booting the real KERNAL, both CIAs initialize
-      exactly as their datasheet describes.
+      layouts disagree on some key positions. See `src/c64/keyboard.c`
+      and `docs/cia.md`: this project's table is sourced from a specific
+      citable reference (`docs/sources.md`), **not yet cross-checked
+      empirically** (see below).
+- [~] Verification target: booting the real KERNAL, both CIAs initialize
+      exactly as their datasheet describes, the keyboard matrix verified
+      empirically against the real KERNAL's own character-input
+      routine. **Blocked**: no real ROMs available in the session that
+      built this (same blocker as Phase 2's `tests/integration/
+      test_boot.c`) — the `Cia`/`KeyboardMatrix`/`Joystick` modules
+      themselves are done and unit-tested (74 assertions total,
+      synthetic), but neither wired into `src/c64/memory.c`'s I/O
+      dispatch (deliberately deferred to Phase 6, see `docs/cia.md`'s
+      status section) nor verified against real hardware/ROM behavior.
 
 ## Phase 4 — VIC-II, scanline-accurate from the start
 

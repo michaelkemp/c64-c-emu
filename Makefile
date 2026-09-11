@@ -22,8 +22,8 @@ BUILD_DIR := build
 
 # Every module lands here as its own phase's chip/subsystem gets built --
 # see CLAUDE.md's repo map.
-CORE_SRCS := src/cpu/cpu6502.c src/c64/memory.c
-CORE_HDRS := src/bus.h src/cpu/cpu6502.h src/c64/memory.h
+CORE_SRCS := src/cpu/cpu6502.c src/c64/memory.c src/c64/cia.c src/c64/keyboard.c
+CORE_HDRS := src/bus.h src/cpu/cpu6502.h src/c64/memory.h src/c64/cia.h src/c64/keyboard.h
 
 # One self-contained test binary per tests/unit/test_*.c file (each has
 # its own main()), sharing the tiny test framework in testutil.c.

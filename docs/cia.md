@@ -8,9 +8,12 @@ different wiring on the board — implement one `Cia` module and
 instantiate it twice with different interrupt-line behavior at the
 integration point (Phase 6).
 
-Primary reference: the official preliminary MOS 6526 CIA datasheet
-(widely available from 6502-hardware-reference archives — cite the
-specific register/section when you pull a behavior from it).
+Primary reference: the official preliminary MOS 6526 CIA datasheet —
+https://6502.org/documents/datasheets/mos/mos_6526_cia_preliminary_nov_1981.pdf,
+read in full; see `docs/sources.md` for exactly what was confirmed from
+it and how (it's a scanned PDF — read as page images, not as
+AI-summarized extracted text, per `docs/references-and-gotchas.md`'s
+"read the primary source yourself" rule).
 
 ## Register map (offsets within each CIA's 256-byte range; low byte only actually decodes, mirrored 16x — real hardware detail, safe to model or to ignore and just use the low 4 bits)
 
@@ -30,16 +33,36 @@ specific register/section when you pull a behavior from it).
 
 ## Timers
 
-Two independent 16-bit down-counters (Timer A, Timer B), each with four
-real run modes selected by its control register:
-1. One-shot: counts down once, stops, sets its ICR flag.
-2. Continuous: reloads from its latch and keeps counting.
-3. Timer B only: count CNT pin pulses instead of PHI2 cycles (real
-   hardware detail, low priority — safe to stub if nothing exercises it
-   yet, but document the stub).
-4. Timer B only: count Timer A underflows instead of PHI2 cycles (used
-   for chained/cascaded timing — real software, including the KERNAL's
-   own jiffy clock and some music routines, can depend on this).
+Two independent 16-bit down-counters (Timer A, Timer B). Confirmed
+directly from the datasheet (see `docs/sources.md`) — **correcting an
+earlier draft of this doc**, which said "count CNT pulses" was a
+Timer-B-only mode: it isn't. The real per-timer mode bits are:
+
+- **CRA bit 3 (RUNMODE)**: 0 = continuous (reload from latch on
+  underflow and keep counting), 1 = one-shot (reload from latch on
+  underflow, but also clear CRA's own START bit, stopping it). Both
+  modes reload the counter from the latch on underflow — the only
+  difference is whether START gets cleared.
+- **CRA bit 5 (INMODE)**: 0 = Timer A counts PHI2 cycles, 1 = Timer A
+  counts positive transitions on the CNT pin.
+- **CRB bits 6,5 (INMODE, 2 bits)**: `00` = Timer B counts PHI2, `01` =
+  Timer B counts positive CNT transitions, `10` = Timer B counts Timer
+  A underflow pulses, `11` = Timer B counts Timer A underflow pulses
+  *while CNT is currently high* (a level gate, not an edge).
+- **CRA/CRB bit 4 (LOAD)**: a strobe, not stored state — "always reads
+  back a zero and writing a zero has no effect." Writing a 1 force-
+  loads the counter from the latch immediately, running or not.
+- **Latch vs. counter**: reads of $4-$7 return the live counter; writes
+  go to the latch. Writing the *low* byte only ever touches the latch.
+  Writing the *high* byte also force-loads the counter from the latch
+  **if the timer is currently stopped** — but if it's running, only the
+  latch updates; the live counter is left alone until the next real
+  underflow or force-load. Easy to get backwards from a paraphrase —
+  confirmed from the datasheet's own wording.
+
+Real software (the KERNAL's own jiffy clock, and some music/timing
+routines) genuinely depends on the Timer-B-counts-Timer-A-underflow
+mode for cascaded/chained timing.
 
 **The KERNAL's own jiffy-clock IRQ** is driven by CIA1 Timer A in
 continuous mode, reloaded to fire at real ~60Hz (NTSC)/~50Hz-ish (PAL,
@@ -60,6 +83,10 @@ ICR is a *mask* write, not a flag write: bit 7 set means "set the
 following bits in the mask," bit 7 clear means "clear the following bits
 in the mask" — a different write semantics from every other register in
 this chip, worth a code comment where it's implemented, not just here.
+Confirmed word-for-word against the datasheet (`docs/sources.md`); the
+read side additionally computes a bit-7 IR ("interrupt request pending")
+flag as `(data & mask) != 0` — that's what actually drives the physical
+IRQ/NMI line, not the raw flag bits alone.
 
 ## TOD (time-of-day) clock
 
@@ -77,23 +104,46 @@ produces *exactly* the expected number of tenth-ticks, not "approximately
 right," since that's precisely the class of bug an inexact accumulator
 produces.
 
+Additional real, easy-to-miss behavior confirmed from the datasheet:
+- **Writing the Hours register stops the clock; writing the Tenths
+  register restarts it.** This is the documented mechanism for setting
+  TOD to an exact time atomically (write HR last-but-one, TENTHS last).
+- **Reading Hours latches all four TOD registers** (a consistent
+  snapshot survives a multi-byte read even if the clock ticks over
+  mid-read); they stay latched until Tenths is read, which itself
+  still returns the latched value before un-latching for subsequent
+  reads.
+- **Alarm registers alias the same four addresses** as the clock
+  registers; a Control Register B bit (bit 7) selects which set a
+  *write* targets. Reads always return the real clock, never the alarm,
+  regardless of that bit.
+- **Hours is a 12-hour (1-12) dial with an AM/PM flag** (bit 7), not a
+  0-23 counter — and the AM/PM flag flips exactly on the 12→1
+  transition, not 11→12 (i.e. matches a normal 12-hour clock: ...,
+  11:59 AM, 12:00 PM, 12:59 PM, 1:00 PM, ...).
+
 ## Keyboard matrix + joystick (CIA1)
 
 The C64 keyboard is an 8×8 matrix: CIA1 Port A selects which column(s)
 are being scanned (writing a 0 bit to select a column) and Port B reads
 back which rows have a key held (0 = pressed) for the selected
-column(s), or vice versa depending on which port the KERNAL's scan
-routine is currently configured to drive — get the actual direction
-(which port is "select," which is "read back") from the datasheet/KERNAL
-disassembly rather than assuming.
+column(s). This directionality (A = select, B = read) is corroborated
+by every source checked (see `docs/sources.md`) and is **not** the part
+of this that's genuinely disputed — see below for what is.
 
 **The exact key-to-matrix-position layout is a real, disputed-in-the-
 community fact** — at least two commonly-cited community layouts
 disagree on some key positions, and neither should be trusted blindly.
-Cross-check against the datasheet's own wiring diagram, and once
-Phase 2's ROMs are staged, verify empirically: drive each of the 64
-matrix positions alone and confirm the character the real KERNAL's own
-character-input routine reports back matches the expected key. This is
+This project's table (`src/c64/keyboard.h`) is sourced from
+http://sta.c64.org/cbm64kbdlay.html, read as raw page text (see
+`docs/sources.md`) — a specific, citable choice of "one of the (at
+least) two layouts," not yet cross-checked against the CIA datasheet's
+own wiring diagram (it doesn't have a C64-specific one — the 6526 is a
+generic chip, board wiring is a C64-schematic fact, not a CIA-chip
+fact) or verified empirically. Once Phase 2's ROMs are staged, verify
+empirically: drive each of the 64 matrix positions alone and confirm
+the character the real KERNAL's own character-input routine reports
+back matches the expected key. This is
 worth the effort — a wrong layout produces a keyboard that *looks*
 plausible (most keys land somewhere reasonable) but is subtly wrong in
 ways that are maddening to debug later from symptoms alone.
@@ -117,10 +167,50 @@ advances at the correct real-world rate once BASIC reaches its
 keyboard-wait loop, and a synthetic keypress on each of the 64 matrix
 positions produces the real KERNAL's own correct character back.
 
+## Implementation status (Phase 3, done)
+
+`src/c64/cia.c` implements one `Cia` module (ports, all four timer run-
+mode combinations including both CNT-driven modes, TOD with its full
+latch/stop-start/alarm behavior, ICR) meant to be instantiated twice —
+see this doc's header comment for the CIA1-vs-CIA2 wiring differences,
+which are Phase 6's job (see below), not this module's. `src/c64/
+keyboard.c` implements the 8×8 matrix (as a pulldown-mask computation
+given the current column-select port value — a pure function, easy to
+unit test) and a simple digital joystick model. Verified by 59 (CIA) +
+15 (keyboard/joystick) hand-written unit tests, all synthetic —
+including all timer modes, the latch-vs-counter and running-vs-stopped
+write nuances, ICR mask-write/read-clear semantics, and TOD's BCD
+rollover (tenths→seconds→minutes→hours with the 12/AM-PM quirk),
+latching, and stop/start-on-register-write behavior.
+
+**Not done in Phase 3, deliberately deferred to Phase 6**: wiring
+`Cia`/`KeyboardMatrix`/`Joystick` instances into `src/c64/memory.c`'s
+`$DC00-$DDFF` I/O dispatch (currently still Phase 2's stub, returning
+0/ignoring writes) and into the CPU's IRQ/NMI lines. The roadmap frames
+"wire CPU + Bus + both CIAs + VIC-II + SID together" as Phase 6's own
+job precisely so this doesn't get partially rewired three separate
+times as VIC-II and SID land in Phases 4-5 too.
+
+**Not done at all yet, blocked on real ROMs**: this doc's own
+Verification target below (booting the real KERNAL) — same blocker as
+Phase 2's `tests/integration/test_boot.c`, see `docs/memory-map.md`'s
+status section. In particular the keyboard-matrix-layout empirical
+cross-check described above needs this.
+
 ## Known gaps to disclose as you build
 
-- Serial-port (`$C` shift register) — real hardware detail for IEC bus
-  bit-banging; can stub until Phase 9b needs it for real.
+- Serial-port (`$C` shift register) — stubbed as a plain read/write
+  byte with no real shift-register timing; real hardware detail for
+  IEC bus bit-banging, needed for real in Phase 9b.
 - RS-232 user-port support via CIA2 — out of scope unless something
   specific needs it.
-- CNT-pin-driven timer modes — likely safe to stub; document if you do.
+- The `PC`/`FLAG` handshaking pins (real hardware: `PC` pulses low
+  after a Port B access, `FLAG` is a negative-edge interrupt input) are
+  not modeled — `FLAG`'s ICR bit exists but nothing drives it yet
+  (CIA1's `FLAG` pin is cassette-read-data on real hardware, not
+  modeled since no datasette exists in this project).
+- CNT-driven timer modes are implemented for real (`cia_set_cnt_level()`
+  in `src/c64/cia.c`) per the datasheet, but **nothing in this project
+  drives the CNT line yet** — no datasette, no IEC bus (Phase 9b) — so
+  this path is only unit-tested directly, not exercised by any real
+  integration yet.
