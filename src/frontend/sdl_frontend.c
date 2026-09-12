@@ -194,8 +194,14 @@ static void handle_key_event(Machine *m, KeyState *ks, SDL_Scancode sc, bool dow
  * their real C64 keyboard position -- `<`/`>` were missing from this
  * list's first version and silently dropped every comparison operator
  * out of a real, user-pasted BASIC program (`IF X<24 OR X>220`) before
- * being added; real hardware: SHIFT+comma/SHIFT+period. Lowercase
- * input maps to the SAME (unshifted) key as its
+ * being added; real hardware: SHIFT+comma/SHIFT+period. `$` was also
+ * wrong in this list's first version -- mapped to the physical POUND
+ * key, which actually types `£` (verified directly against the real
+ * KERNAL: unshifted POUND produces screen code $1C, the £ glyph). Real
+ * `$` is SHIFT+4 (screen code $24), following the same classic PETSCII
+ * shifted-digit-row convention as `(` (SHIFT+8) and `)` (SHIFT+9)
+ * above -- confirmed the same way. Lowercase input maps to the SAME
+ * (unshifted) key as its
  * uppercase form, matching how a real C64 keyboard has only one set of
  * letter keys (producing uppercase PETSCII by default) -- there is no
  * real "lowercase" to type on a stock C64 in this mode. Unmapped
@@ -256,7 +262,7 @@ static bool char_to_c64key(char c, C64Key *out_key, bool *out_shift) {
         case '-': *out_key = C64KEY_MINUS; return true;
         case '=': *out_key = C64KEY_EQUALS; return true;
         case '*': *out_key = C64KEY_ASTERISK; return true;
-        case '$': *out_key = C64KEY_POUND; return true;
+        case '$': *out_key = C64KEY_4; *out_shift = true; return true;
         case '(': *out_key = C64KEY_8; *out_shift = true; return true;
         case ')': *out_key = C64KEY_9; *out_shift = true; return true;
         case '"': *out_key = C64KEY_2; *out_shift = true; return true;
