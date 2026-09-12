@@ -146,6 +146,7 @@ typedef struct VicII {
     uint8_t line_color[VIC_X_MODULUS];
     bool line_is_foreground[VIC_X_MODULUS]; /* background/bitmap classification, for sprite-background collision */
     bool line_vertical_border[VIC_X_MODULUS]; /* suppresses sprite/graphics collisions where set */
+    bool line_main_border[VIC_X_MODULUS]; /* real border-over-sprite display priority (article 3.9 rule 1) -- does NOT suppress collision detection, only final display color, see composite_sprites_for_line() */
     bool line_sprite_drawn[VIC_X_MODULUS];    /* a higher-priority sprite already drew here this line */
     uint8_t line_sprite_opaque_mask[VIC_X_MODULUS]; /* bit N = sprite N drew an opaque pixel here this line (sprite-sprite collision) */
 

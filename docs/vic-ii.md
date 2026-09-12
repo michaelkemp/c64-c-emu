@@ -188,10 +188,47 @@ Y-expansion "advance line" flip-flop and MCBASE/MC bookkeeping;
 sprite-0-highest) and both collision types (section 3.8.2), including
 the real "only the first collision after the register reads as zero
 raises the IRQ latch bit" behavior and collision suppression inside the
-vertical border. Border-over-sprite priority is enforced structurally:
-sprite compositing runs against a background/border buffer that already
-has the border color written wherever `main_border` was set, and
-`composite_sprites_for_line()` never overwrites it.
+vertical border.
+
+**This doc's own warning above — "only shows up as a visible bug with a
+real sprite-using program running near the border" — came true, almost
+word for word.** The original version of this section claimed
+border-over-sprite priority was "enforced structurally" because
+`composite_sprites_for_line()` runs against a buffer already holding
+border color. That was wrong: the function's own sprite-priority check
+(`!(behind_foreground && line_is_foreground[x])`) only looks at
+`line_is_foreground[x]` — the graphics foreground/background
+classification, meant for the *unrelated* sprite-behind-foreground
+(`MxDP`) check — and `update_border_and_render()` sets that flag
+**false** inside the border for its own reasons, which made the
+sprite-priority condition unconditionally true there regardless of
+border state. Every sprite could draw straight over the border; nothing
+in the code actually checked it. A new `line_main_border[x]` per-pixel
+array (populated alongside the existing `line_vertical_border[x]`) now
+gates the final color write directly, without touching collision
+detection (which real hardware does *not* suppress in the border —
+only the final displayed color changes).
+
+**Found via a user's own real BASIC program** (a bouncing sprite,
+`sprite_test.bas`), reported as "the sprite appears a second time near
+the top of the screen, moving opposite to the real one" — which led to
+also confirming a second, genuinely real (not a bug) fact along the
+way: article rules 2/4 compare a sprite's Y register against the
+**lower 8 bits of RASTER**, not the full 9-bit PAL counter, so a
+sprite's DMA really does re-trigger 256 lines later (mod 312). A
+same-frame match only exists for Y≤55 (Y+256 must stay ≤311), and for
+every such Y the wrapped line (256-311) is provably always inside the
+real bottom border (252-299) or real vertical blanking (300-311) —
+never the actual 51-251 display window — so this internal re-trigger
+alone has no visible symptom. What made it visible was the border-
+priority bug above: the re-triggered sprite's 21-line display duration
+spans the frame wrap into the new frame's lines 0-19, and lines 16-19
+of that span are real, *visible* upper border (RSEL=1: 16-50) — exactly
+where the missing border check let it bleed through, moving in the
+opposite direction to the real sprite because it's driven by the same
+Y register wrapping the other way around the frame. Both are covered
+by `tests/unit/test_vic_ii.c`'s `test_sprite_does_not_draw_over_border`
+and `test_sprite_y_match_low_8_bits_retriggers_but_stays_hidden`.
 
 **Deliberately not implemented**: rule 7a (the obscure "CPU clears MxYE
 in cycle 15" MCBASE-averaging special case used by advanced

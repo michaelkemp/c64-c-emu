@@ -399,6 +399,76 @@ static void test_sprite_priority_higher_number_hidden_behind_lower(void) {
     TEST_ASSERT_EQ_U8(h.vic.framebuffer[90][100], 7);
 }
 
+/* Regression test for a real, confirmed bug: composite_sprites_for_line()
+ * never actually checked border state -- it only checked
+ * line_is_foreground[x] (the graphics foreground/background
+ * classification, for the UNRELATED sprite-behind-foreground MxDP
+ * priority check), which update_border_and_render() sets false inside
+ * the border for its own reasons, making the sprite-priority condition
+ * unconditionally true there regardless of border. This let every
+ * sprite draw over the border, directly contradicting article 3.9 rule
+ * 1 ("border has strictly higher display priority than every sprite" --
+ * already correctly documented, just not actually implemented). Found
+ * via a user's own real BASIC sprite program: a sprite re-triggered by
+ * the real, documented low-8-bit Y-match wraparound (article 3.8.1
+ * rules 2/4; see this test's own neighbor below) landed partly in the
+ * border on the wrapped-to frame and was visibly NOT hidden there. */
+static void test_sprite_does_not_draw_over_border(void) {
+    Harness h;
+    setup(&h);
+    vic_ii_reg_write(&h.vic, REG_D020, 14); /* border color 14 */
+    const uint8_t data[3] = {0xFF, 0, 0};
+    enable_sprite0(&h, 10, 90, 4, data); /* X=10 is well within the permanent left border (CSEL=1 -> 24) */
+
+    run_to_line_cycle1(&h.vic, 90);
+    run_cycles(&h.vic, 63);
+
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[90][10], 14); /* border color, NOT the sprite's color 7 */
+}
+
+/* Confirms a real, documented (not emulator-specific) hardware quirk,
+ * found via the same user program (Y=55, the exact value it was
+ * bouncing through when the bug was reported): article 3.8.1's rules
+ * 2/4 compare a sprite's Y register against the LOWER 8 BITS of
+ * RASTER, not the full 9-bit PAL raster counter -- so DMA genuinely
+ * re-triggers 256 lines later (mod 312, PAL's total line count) purely
+ * because (55+256)=311 also satisfies "raster & 0xff == 55". This is a
+ * real internal fact, not something to "fix".
+ *
+ * A same-frame wraparound match only exists for Y <= 55 (Y+256 must
+ * stay within the valid 0-311 range), and for every such Y, the
+ * wrapped line (256-311) provably always falls in either the real
+ * bottom border (252-299, RSEL=1) or real vertical blanking (300-311)
+ * -- never inside the actual 51-251 display window, regardless of
+ * RSEL/CSEL. So on correctly-behaving hardware (and now, correctly
+ * here) this internal re-trigger has NO visible symptom by itself.
+ * What WAS visible, before the border-priority bug above was fixed:
+ * the re-triggered sprite's 21-line display duration runs from line
+ * 311 across the frame wrap into the new frame's lines 0-19, and lines
+ * 16-19 of that span are real, visible upper border (not blanked) --
+ * exactly where the border-priority bug let it bleed through. */
+static void test_sprite_y_match_low_8_bits_retriggers_but_stays_hidden(void) {
+    Harness h;
+    setup(&h);
+    vic_ii_reg_write(&h.vic, REG_D020, 14);
+    const uint8_t data[3] = {0xFF, 0, 0};
+    enable_sprite0(&h, 24, 55, 4, data);
+
+    run_to_line_cycle1(&h.vic, 55);
+    run_cycles(&h.vic, 63);
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[55][24], 7); /* the real occurrence */
+
+    run_to_line_cycle1(&h.vic, 311); /* (55 + 256) % 312 -- the internal re-trigger point */
+    TEST_ASSERT(!h.vic.sprite_dma[0]); /* confirm it wasn't already left on from the first occurrence */
+    run_cycles(&h.vic, 63);
+    TEST_ASSERT(h.vic.sprite_dma[0]); /* re-triggered, exactly per article rules 2/4 -- a real fact */
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[311][24], 0); /* real vertical blanking -- correctly forced black */
+
+    run_to_line_cycle1(&h.vic, 18); /* within the re-triggered sprite's 21-line span, and within the */
+    run_cycles(&h.vic, 63);         /* real, visible upper border (16-50) -- must NOT show the sprite */
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[18][24], 14); /* border color, not the sprite's color 7 */
+}
+
 static void test_sprite_multicolor_rendering(void) {
     Harness h;
     setup(&h);
@@ -458,6 +528,8 @@ int main(void) {
     test_sprite_appears_at_its_x_position();
     test_sprite_sprite_collision_detected();
     test_sprite_priority_higher_number_hidden_behind_lower();
+    test_sprite_does_not_draw_over_border();
+    test_sprite_y_match_low_8_bits_retriggers_but_stays_hidden();
     test_sprite_multicolor_rendering();
 
     test_bus_stolen_during_bad_line_window();

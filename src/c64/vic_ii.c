@@ -502,8 +502,24 @@ static void composite_sprites_for_line(VicII *vic) {
              * already drew an opaque pixel here wins outright. */
             if (vic->line_sprite_drawn[x]) continue;
 
+            /* Border has strictly higher display priority than every
+             * sprite (article 3.9's own rule 1: the main border flip-
+             * flop's color is shown "otherwise" the multiplexer selects
+             * graphics/sprite data -- border is checked first). This was
+             * a real, confirmed bug: line_is_foreground[x] is set false
+             * inside the border for an unrelated reason (it's the
+             * graphics-foreground/background classification, used only
+             * for the sprite-behind-foreground priority check below),
+             * which made `!(behind_foreground && line_is_foreground[x])`
+             * unconditionally true in the border regardless of
+             * behind_foreground -- silently letting every sprite draw
+             * over the border. Found via a user's own real BASIC sprite
+             * program: a sprite re-triggered by the low-8-bit Y-match
+             * wraparound (see docs/vic-ii.md's Sprites section) landed
+             * partly in the border on the following frame, which should
+             * have hidden it there but visibly didn't. */
             bool draw_over_foreground = !(behind_foreground && vic->line_is_foreground[x]);
-            if (draw_over_foreground) {
+            if (draw_over_foreground && !vic->line_main_border[x]) {
                 vic->line_color[x] = color;
             }
             vic->line_sprite_drawn[x] = true;
@@ -544,6 +560,7 @@ static void update_border_and_render(VicII *vic, uint16_t x_base) {
         }
 
         vic->line_vertical_border[x] = vic->vertical_border;
+        vic->line_main_border[x] = vic->main_border;
         if (vic->main_border) {
             vic->line_color[x] = vic->border_color;
             vic->line_is_foreground[x] = false;
