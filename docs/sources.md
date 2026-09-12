@@ -194,3 +194,59 @@ roughly the phase order it was needed.
   `VIC_LAST_VISIBLE_LINE` to `src/c64/vic_ii.h` and force true blanking
   (black, not border color) outside that window in `vic_ii_cycle()` —
   see `docs/vic-ii.md`.
+
+- **Christian Bauer's article, re-read again (section 3.14.3, FLI, and
+  the "Bad Line, no sprites" cycle-by-cycle timing diagram near the
+  article's start)** — same URL, same raw-`.txt` discipline, fetched a
+  third time. This is the direct result of the user challenging an
+  earlier session's own claim on sight ("you really think Commodore
+  would have shipped a machine where the first two columns of text are
+  unreadable?") rather than accepting it — exactly the kind of "verify
+  against real behavior, don't trust a prior citation blindly" moment
+  this project's methodology exists for. Two real, confirmed findings:
+  (1) grepping the raw article text for the words its own earlier
+  citation claimed ("forced", "$ff", "three") found the "$ff" quote
+  real but located in section 3.14.3 (FLI), describing a narrow,
+  artificially-triggered late-bad-line effect, not a universal bad-line
+  property as the earlier session's code comment and this doc both
+  wrongly generalized it to be. (2) Decoding the article's own cycle-
+  by-cycle ASCII timing diagram character-by-character (aligning its
+  cycle-number rows, phi0-phase row, and VIC-access-type row by exact
+  column index, since eyeballing dense ASCII art risks misreading)
+  found c-access happens in phase 2 of cycle N while the g-access that
+  actually renders that data happens in phase 1 of cycle N+1 — a real
+  one-cycle pipeline the emulator wasn't modeling at all. Verified this
+  diagram-decode wasn't itself a misread by cross-checking its embedded
+  X-coordinate hex encoding at a known reference point (cycle 1) against
+  the article's own separately-stated "First X coo. of a line: 404"
+  table value — got an exact match (404) before trusting the decode
+  further.
+
+- **schepers' "The memory accesses of the 6569 / 8566"** —
+  https://ist.uwaterloo.ca/~schepers/MJK/ascii/vic2-pal.txt, a second,
+  independent source (different author, different site) fetched
+  specifically to corroborate the one-cycle c-access/g-access pipeline
+  finding above before changing rendering-wide behavior on the strength
+  of one document's ASCII-art alone — this project's own multi-source
+  discipline, applied deliberately here because the change was large in
+  effect (shifting every displayed pixel) even though the reasoning
+  chain to get there was intricate. Confirms independently, in plain
+  prose: "The character pointers will be fetched one cycle before the
+  image data of the first scan line of a text line, or 'bad line.'"
+
+- **This project's own empirical pixel measurement**, not a document at
+  all: after fixing the two bugs above, a synthetic full-screen test
+  (all 40 columns/25 rows filled, one distinct color per column — built
+  because the user asked specifically for this exact check: "fill the
+  screen with text and see that the bottom row, top row, and all
+  columns appear") showed column 0 rendering only 4 of its 8 pixels.
+  Measuring exact pixel-color transitions in the rendered output against
+  the already-known `border_left=24` constant (Python, reading the PNG
+  pixel-by-pixel) found the real fix: the g-access's visible pixel
+  output lands 4 pixels later than its own cycle's raw X coordinate.
+  This was measured empirically rather than derived from the article
+  because the article's own "Graph." line — the part of the diagram
+  that looked most directly relevant — explicitly disclaims itself for
+  this exact purpose ("doesn't correspond to the signal on the VIC
+  video output"). See `docs/vic-ii.md`'s verification-target entry for
+  the full account of all three fixes together.

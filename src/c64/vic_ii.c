@@ -262,14 +262,32 @@ static void do_c_access(VicII *vic) {
     uint8_t data = vic_ii_read(vic, addr);
     uint8_t color = (uint8_t)(vic->color_ram[vic->vc & 0x03FFu] & 0x0Fu); /* Color RAM is wired directly to the c-access, not through the bank/char-ROM path */
 
-    /* "The first three c-accesses of the VIC in each line do not read
-     * valid data... the chip reads the value $ff" for the character/
-     * data byte -- the color-RAM-sourced bits are unaffected. Article
-     * section 3.14.3's DMA-delay discussion, confirmed directly (see
-     * docs/sources.md). */
-    if (vic->cycle == 15 || vic->cycle == 16 || vic->cycle == 17) {
-        data = 0xFFu;
-    }
+    /* A real, previously-misapplied bug lived here: this unconditionally
+     * forced $FF for cycles 15-17 on EVERY bad line, citing article
+     * section 3.14.3 (FLI). Re-reading that section directly (raw
+     * .txt, docs/sources.md) shows the $ff-garbage is NOT a property of
+     * ordinary bad lines at all -- it only happens when a Bad Line
+     * Condition is created artificially LATE, specifically by writing
+     * $d011 at cycle 14 instead of the condition already being true
+     * before cycle 12 (the FLI trick). The article's own reasoning:
+     * the first c-access needs BA low since cycle 12 for AEC to have
+     * settled (3 cycles) by cycle 15; on a normal bad line BA already
+     * goes low at cycle 12 (see is_bad_line()/the bus-steal window
+     * below), so AEC is settled in time and c-access data is valid
+     * from cycle 15 onward -- only the FLI trick's artificially late
+     * (cycle-14) BA transition leaves AEC unsettled at cycle 15/16.
+     * Unconditionally forcing $ff corrupted every single normal text
+     * display's first two-plus columns -- caught when a live, readable
+     * SDL2 rendering (Phase 7) made that implausible on sight ("Commodore
+     * would not have shipped a machine with unreadable text"), which a
+     * purely-behavioral automated check comparing screen memory content
+     * never would have caught. Reproducing the real, narrow FLI-only
+     * effect (which needs tracking exactly when BA went low relative to
+     * cycle 12 for the CURRENT line, not a fixed cycle range) is out of
+     * scope per this project's own already-disclosed granularity
+     * decision that FLI is not reproducible under this model (see
+     * vic_ii.h) -- so this is simply not modeled, not even
+     * approximately. */
 
     vic->vm_color_line[vic->vmli] = (uint16_t)(((uint16_t)color << 8) | data);
 }
@@ -559,6 +577,69 @@ bool vic_ii_cycle(VicII *vic) {
     update_vc_rc(vic);
     update_sprite_dma(vic);
 
+    /* A second real, confirmed bug lived here (found alongside the
+     * do_c_access() bug above, both surfaced by the same live-display
+     * investigation): c-access and g-access were both run in the SAME
+     * cycle, using the SAME vmli, with zero pipeline delay between
+     * "fetch the character pointer" and "use it to render pixels."
+     * Real hardware has a genuine ONE-CYCLE pipeline: rule 3 (article
+     * 3.7.2) says a c-access happens "in the SECOND phase" of cycles
+     * 15-54; decoding the article's own cycle-by-cycle timing diagram
+     * (its embedded X-coordinate hex encoding, independently cross-
+     * checked against its "First X coo. of a line: 404" table, and its
+     * explicit phi0-phase legend) shows the g-access that CONSUMES that
+     * data runs in the FIRST phase of the *next* cycle (16-55), not the
+     * same one -- confirmed by a second, independent source (schepers'
+     * "memory accesses of the 6569/8566": "the character pointers will
+     * be fetched one cycle before the image data..."). Zero-delay
+     * rendering shifted every displayed pixel one full character cell
+     * (8 pixels) to the left of where it belongs -- on a real 40-column
+     * boot screen this pushed genuine text (not just border) out of the
+     * visible window on the left, and wrapped stale/wrong data in on
+     * the right, which is likely what was actually behind at least part
+     * of the visible corruption previously (wrongly) blamed entirely on
+     * the fabricated "forced $ff" quirk above. Fixed by running the
+     * g-access/render/VC-VMLI-increment step for cycle N+1 relative to
+     * the c-access that fed it (cycle N), reordered below so a cycle
+     * that does both (16-54) increments VMLI *before* that same cycle's
+     * own c-access, exactly matching the real phase1-then-phase2 order. */
+
+    /* A third real, empirically-confirmed offset lives here, on top of
+     * the one-cycle c/g pipeline above: even after that fix, a
+     * synthetic full-40-column/25-row test screen showed column 0
+     * rendering only 4 of its 8 pixels (the other 4 overwritten by the
+     * still-active left border) while every other column rendered at
+     * full width -- direct pixel measurement against the known border
+     * comparator value (24) showed the g-access's actual pixel OUTPUT
+     * lands 4 pixels (half a cycle) later than its own cycle's raw
+     * VIC_FIRST_LINE_X-derived x_base. This is a distinct fact from
+     * VIC_FIRST_LINE_X itself (which is a directly primary-sourced,
+     * independently-confirmed constant -- see machine.h/vic_ii.h -- and
+     * is left untouched here); it's specifically the display pipeline's
+     * own fetch-to-visible-output latency, which the article's own
+     * "Graph." line explicitly warns is NOT reliable to derive this
+     * from ("doesn't correspond to the signal on the VIC video
+     * output") -- so this +4 was determined empirically, by measuring
+     * exact pixel boundaries in a rendered synthetic test frame against
+     * the known, directly-stated border_left=24 constant, rather than
+     * asserted from the article text. Applied uniformly to every
+     * cycle's x_base (not just text-rendering cycles) so the per-pixel
+     * border comparator loop still tiles all 504 X positions exactly
+     * once per line with no gap or overlap. Sprite positioning is
+     * unaffected -- it compares directly against the raw X coordinate
+     * space via vic->sprite_x_lo/msb, never through this x_base. */
+    uint16_t x_base = (uint16_t)((VIC_FIRST_LINE_X + (vic->cycle - 1) * 8u + 4u) % VIC_X_MODULUS);
+    if (vic->cycle >= 16 && vic->cycle <= 55) {
+        do_g_access(vic, x_base);
+        update_border_and_render(vic, x_base);
+        if (vic->display_state) {
+            vic->vc = (uint16_t)((vic->vc + 1) & 0x03FFu);
+            vic->vmli = (uint8_t)((vic->vmli + 1) % 40u);
+        }
+    } else {
+        update_border_and_render(vic, x_base);
+    }
+
     bool badline_window = is_bad_line(vic) && vic->cycle >= 15 && vic->cycle <= 54;
     if (badline_window) {
         do_c_access(vic);
@@ -568,19 +649,6 @@ bool vic_ii_cycle(VicII *vic) {
      * discarded; only the counter's own decrement is observable. */
     if (vic->cycle >= 11 && vic->cycle <= 15) {
         vic->ref_counter--;
-    }
-
-    if (vic->cycle >= 15 && vic->cycle <= 54) {
-        uint16_t x_base = (uint16_t)((VIC_FIRST_LINE_X + (vic->cycle - 1) * 8u) % VIC_X_MODULUS);
-        do_g_access(vic, x_base);
-        update_border_and_render(vic, x_base);
-        if (vic->display_state) {
-            vic->vc = (uint16_t)((vic->vc + 1) & 0x03FFu);
-            vic->vmli = (uint8_t)((vic->vmli + 1) % 40u);
-        }
-    } else {
-        uint16_t x_base = (uint16_t)((VIC_FIRST_LINE_X + (vic->cycle - 1) * 8u) % VIC_X_MODULUS);
-        update_border_and_render(vic, x_base);
     }
 
     /* Raster IRQ compare -- checked in cycle 1 (article section 3.12;

@@ -139,14 +139,21 @@ driven by the main loop's cycle interleaving from Phase 1/6's design,
 
 - [x] Standard character-mode text rendering first — verify against the
       real boot screen (`**** COMMODORE 64 BASIC V2 ****` etc.) from
-      genuine staged ROM content. **Done**: `make demo-real-rom`
-      (`tools/demos/real_rom_boot_dump.c`) genuinely renders the real
-      boot screen from real KERNAL/BASIC/Character ROM content,
-      including visibly exhibiting the documented "first three
-      c-accesses read forced `$FF`" DMA-delay quirk as a real, expected
-      artifact — see `docs/vic-ii.md`'s Verification targets section.
-      Synthetic screen/charset content in `tests/unit/test_vic_ii.c`
-      remains the base, ROM-free test coverage.
+      genuine staged ROM content. **Done, genuinely, as of Phase 7**:
+      `make demo-real-rom` (`tools/demos/real_rom_boot_dump.c`) renders
+      the real boot screen, fully readable, pixel-correct. An earlier
+      version of this checklist marked this done at Phase 4 and
+      described the boot screen's left-edge checkerboard as a correctly
+      -reproduced documented quirk; both were wrong — three real VIC-II
+      bugs (a misapplied FLI-only effect, a missing one-cycle c/g-access
+      pipeline delay, and a 4-pixel g-access output offset) were
+      corrupting every normal text display, only caught once Phase 7's
+      live SDL2 rendering made it visible on sight. See
+      `docs/vic-ii.md`'s Verification targets section for the full
+      account. Synthetic screen/charset content in
+      `tests/unit/test_vic_ii.c` remains the base, ROM-free test
+      coverage, now including a full-40-column/25-row edge-to-edge
+      regression test.
 - [x] Multicolor and bitmap modes. See `src/c64/vic_ii.c`'s
       `render_pixels_from_byte()`, sourced directly from the primary
       article (`docs/sources.md`).

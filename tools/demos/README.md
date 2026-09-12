@@ -46,11 +46,13 @@ KERNAL/BASIC/Character ROMs (`scripts/stage_roms.sh`) through a genuine
 `cpu6502_reset()` (a real reset-vector fetch, not `hello_c64.s`'s
 skip-straight-to-PC trick) and dumps the resulting screen. With real
 ROMs staged, this genuinely renders the real "\*\*\*\* COMMODORE 64
-BASIC V2 \*\*\*\*" boot screen and "READY." prompt — real end-to-end
-confirmation of Phases 1, 2, and 4 together, and it independently
-exercises Phase 4's documented "first three c-accesses of a bad line
-read a forced `$FF`" DMA-delay quirk (visible as a checkerboard
-artifact on the screen's left edge, matching real hardware).
+BASIC V2 \*\*\*\*" boot screen and "READY." prompt, fully readable —
+real end-to-end confirmation of Phases 1, 2, and 4 together. (An
+earlier version of this doc claimed the boot screen's left-edge
+checkerboard here was itself a correctly-reproduced hardware quirk;
+that was wrong — it was a real VIC-II bug, found and fixed in Phase 7
+once someone actually looked at a live rendering. See `docs/vic-ii.md`'s
+verification-target entry for the full story.)
 
 **Never commit this tool's output** — the resulting image embeds real,
 copyrighted KERNAL/BASIC ROM content, unlike `hello_c64_screenshot.png`

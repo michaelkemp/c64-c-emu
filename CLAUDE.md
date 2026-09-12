@@ -261,6 +261,18 @@ was first built on; either was acceptable per the roadmap.
       end-to-end (screen + audio format/activity) directly by the user
       via screenshot; a handful of sub-checks remain manual/future — see
       `docs/peripherals.md`'s "Verification target"/"Known gaps."
+      **The user directly challenging the boot screen's readability on
+      sight then found three further real, confirmed VIC-II bugs**,
+      previously masked because every earlier verification (Phases 4-6)
+      was purely programmatic and nobody had looked at a live picture:
+      a mis-scoped FLI-only effect wrongly applied to every bad line, a
+      missing one-cycle c-access/g-access pipeline delay (cross-checked
+      against two independent primary sources before fixing, since it
+      changed every displayed pixel's position), and an empirically-
+      measured 4-pixel g-access output offset. Fixed in
+      `src/c64/vic_ii.c`; see `docs/vic-ii.md`'s Verification targets
+      section for the full account and `tests/unit/test_vic_ii.c`'s new
+      full-40-column/25-row edge-to-edge regression test.
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

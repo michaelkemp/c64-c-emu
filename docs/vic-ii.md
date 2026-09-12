@@ -248,21 +248,74 @@ see Known Gaps).
 ## Verification targets
 
 1. Real boot screen (Phase 2's ROMs + standard character mode) —
-   pixel-correct against the known, iconic real output. **Done**: with
-   real ROMs staged (`scripts/stage_roms.sh`) and `c64memory_attach_vic()`
-   wired up, `make demo-real-rom` (`tools/demos/real_rom_boot_dump.c`)
+   pixel-correct against the known, iconic real output. **Done, and
+   genuinely so only as of Phase 7** — see below for why "confirmed" at
+   Phase 4 turned out not to mean what it claimed. With real ROMs staged
+   (`scripts/stage_roms.sh`) and `c64memory_attach_vic()` wired up,
+   `make demo-real-rom` (`tools/demos/real_rom_boot_dump.c`) now
    genuinely renders the real "\*\*\*\* COMMODORE 64 BASIC V2 \*\*\*\*"
-   boot screen and "READY." prompt from real KERNAL/BASIC/Character ROM
-   content — visually confirmed, and `tests/integration/test_boot.c`
-   independently confirms it behaviorally (the real "READY." screen-code
-   sequence appears in screen memory after a real cold-start). This run
-   also visibly exhibited the documented "first three c-accesses of a
-   bad line read forced `$FF`" DMA-delay quirk (a checkerboard artifact
-   on the screen's left edge) with real ROM content, not just in
-   synthetic tests. Standard/multicolor text and both bitmap modes'
-   *pixel-level* address/data-bit formulas are still primarily verified
-   against synthetic content in `tests/unit/test_vic_ii.c`, since
-   pixel-exact comparison against a reference image wasn't done here.
+   boot screen and "READY." prompt, fully readable, pixel-correct
+   against the known iconic real output — visually confirmed directly
+   by the user, live, via `make run`. `tests/integration/test_boot.c`
+   independently confirms it behaviorally. Standard/multicolor text and
+   both bitmap modes' *pixel-level* address/data-bit formulas are still
+   primarily verified against synthetic content in
+   `tests/unit/test_vic_ii.c`, since pixel-exact comparison against a
+   reference image wasn't done here.
+
+   **What actually happened, disclosed in full because it's a real
+   lesson in this project's own stated methodology**: Phase 4's own
+   version of this same verification target claimed to be "done" and
+   claimed the real boot screen's left-edge checkerboard was *itself* a
+   correctly-reproduced, documented hardware quirk ("first three
+   c-accesses of a bad line read forced `$FF`"). Both claims were
+   wrong, and both survived unnoticed through Phases 4-6 because every
+   check up to that point was purely programmatic (comparing specific
+   screen-memory bytes or register values), never a human actually
+   looking at a rendered picture. Phase 7's live SDL2 display made the
+   corruption impossible to miss on sight, and the user's own direct
+   challenge — "you really think Commodore would have shipped a machine
+   where the first two columns of text are unreadable?" — is what
+   triggered re-verifying the claim against the primary source instead
+   of trusting the earlier session's citation. Re-reading Christian
+   Bauer's article directly (raw `.txt`, not memory) found: (1) the
+   "forced `$FF`" quote is real, but it describes a narrow, artificially
+   -triggered effect specific to the FLI trick (article section 3.14.3)
+   — not a property of ordinary bad lines at all, and was wrongly
+   generalized; removing it fixed most, but not all, of the corruption.
+   (2) A second, separate, more consequential bug remained: c-access and
+   g-access were both happening in the same PHI2 cycle with zero
+   pipeline delay, when the article's own cycle-by-cycle timing diagram
+   (decoded directly, cross-checked against its own independently-
+   stated "First X coo.: 404" table and its phi0-phase legend, and
+   independently corroborated by a second, separate source — schepers'
+   "memory accesses of the 6569/8566") shows a genuine one-cycle
+   pipeline: the g-access that renders a column's pixels happens one
+   cycle *after* the c-access that fetched its data, not the same
+   cycle. (3) Once both of those were fixed, a live full-screen
+   synthetic test (all 40 columns/25 rows filled, one distinct color
+   per column, built specifically because the user asked for exactly
+   this check: "fill the screen with text and see that the bottom row,
+   top row, and all columns appear") found a third, smaller, purely
+   empirical discrepancy: column 0 rendered only 4 of its 8 pixels,
+   with the other 4 still swallowed by the left border. Measuring exact
+   pixel boundaries against the known `border_left=24` constant showed
+   the g-access's real visible pixel output lands 4 pixels (half a
+   cycle) later than its own cycle's raw X coordinate — a fact the
+   article's own "Graph." diagram line explicitly warns is *not*
+   reliable to derive ("doesn't correspond to the signal on the VIC
+   video output"), so this last offset was determined empirically
+   (measured pixel-by-pixel against `border_left`/`border_right` in a
+   rendered frame) rather than asserted from the text. All three fixes
+   live in `src/c64/vic_ii.c`'s `do_c_access()`/`vic_ii_cycle()`, with
+   the reasoning recorded in comments at each fix site.
+   `tests/unit/test_vic_ii.c`'s `test_normal_bad_line_c_access_reads_
+   real_data_not_forced_ff` and (especially)
+   `test_full_screen_columns_and_rows_render_correctly` are the
+   permanent regression coverage — the latter checks BOTH edge columns'
+   FULL width at BOTH the first and last display rows specifically
+   because a test that only sampled one pixel would not have caught
+   this class of bug.
 2. A hand-assembled test program that changes `$D020` (border color)
    partway down the screen from a raster IRQ handler, producing a
    visibly split-color frame when rendered scanline-by-scanline — the

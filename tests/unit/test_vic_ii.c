@@ -68,9 +68,7 @@ static void run_to_line_cycle1(VicII *vic, uint16_t target_line) {
 }
 
 /* Sets a screen character + its 8x8 pattern + color, at video-matrix
- * column `col` (0-39), avoiding columns 0-2 which read a forced $FF
- * character code on their c-access -- see the DMA-delay test below for
- * that specific, real hardware quirk instead. */
+ * column `col` (0-39). */
 static void place_char(Harness *h, int col, uint8_t code, const uint8_t rows[8], uint8_t color) {
     h->ram[0x0400 + col] = code;
     h->color_ram[col] = color;
@@ -122,31 +120,96 @@ static void test_standard_text_mode_pixel_colors(void) {
     run_to_line_cycle1(&h.vic, 51); /* first display row, RC will be 0 */
     run_cycles(&h.vic, 63);          /* finish the line so framebuffer[51] is committed */
 
-    /* Character column 5 spans x = FIRST_LINE_X + (15-1)*8 + 5*8 .. +7,
-     * since c/g-access for column N happens at cycle 15+N. */
-    uint16_t col_start = (uint16_t)((VIC_FIRST_LINE_X + (15 - 1 + 5) * 8) % VIC_X_MODULUS);
+    /* Character column 5 spans x = FIRST_LINE_X + (16-1)*8 + 5*8 + 4 .. +7:
+     * c-access for column N happens at cycle 15+N, but the g-access
+     * that actually renders its pixels happens one cycle later, at
+     * cycle 16+N (a real one-cycle pipeline), and its visible pixel
+     * output lands a further, empirically-confirmed 4 pixels later
+     * still -- see the two comments in vic_ii_cycle() where these are
+     * implemented. */
+    uint16_t col_start = (uint16_t)((VIC_FIRST_LINE_X + (16 - 1 + 5) * 8 + 4) % VIC_X_MODULUS);
     const uint8_t *line = h.vic.framebuffer[51];
     TEST_ASSERT_EQ_U8(line[col_start], 2);       /* "1" pixel -> foreground color */
     TEST_ASSERT_EQ_U8(line[(col_start + 4) % VIC_X_MODULUS], 6); /* "0" pixel -> background color 0 */
 }
 
-static void test_first_three_c_accesses_read_forced_ff(void) {
+/* Regression test for a real, confirmed bug: an earlier implementation
+ * unconditionally forced $ff for the first three c-accesses of every
+ * bad line, misapplying article section 3.14.3's FLI-specific,
+ * artificially-late-bad-line-only effect as if it were a universal bad
+ * line property. That corrupted every normal text display's first
+ * couple of columns -- confirmed wrong directly against the primary
+ * source (docs/sources.md) once a live, readable rendering (Phase 7)
+ * made the bug visible, which also led to finding and fixing two
+ * further real bugs in the same area (a missing one-cycle c/g-access
+ * pipeline delay, and an empirically-confirmed 4-pixel g-access output
+ * offset -- see vic_ii_cycle()'s own comments). Column 0 is fully
+ * visible now too (see test_full_screen_columns_and_rows_render_
+ * correctly below); column 2 is used here simply to keep this
+ * regression test's own history, not because column 0 is special. */
+static void test_normal_bad_line_c_access_reads_real_data_not_forced_ff(void) {
     Harness h;
     setup(&h);
-    /* Column 0's real character code is deliberately something whose
-     * pattern would be visible if actually used... */
     uint8_t rows[8] = {0xFF, 0, 0, 0, 0, 0, 0, 0};
-    place_char(&h, 0, 0x01, rows, 3);
+    place_char(&h, 2, 0x01, rows, 3);
 
     run_to_line_cycle1(&h.vic, 51);
     run_cycles(&h.vic, 63);
 
-    /* ...but per the article's own documented DMA-delay quirk, the
-     * first three c-accesses (columns 0-2) read $FF for the character
-     * code regardless of what's actually in the video matrix, so
-     * column 0 must NOT show character $01's pattern/color. */
-    uint16_t col_start = (uint16_t)((VIC_FIRST_LINE_X + (15 - 1) * 8) % VIC_X_MODULUS);
-    TEST_ASSERT(h.vic.framebuffer[51][col_start] != 3);
+    uint16_t col_start = (uint16_t)((VIC_FIRST_LINE_X + (16 - 1 + 2) * 8 + 4) % VIC_X_MODULUS);
+    TEST_ASSERT_EQ_U8(h.vic.framebuffer[51][col_start], 3);
+}
+
+/* Regression test for the two pipeline/offset bugs above, at full
+ * screen scale: fills all 40x25 real video-matrix positions with solid
+ * character cells (a distinct color per column) and checks that BOTH
+ * edge columns (0 and 39) render their FULL 8-pixel width -- not just
+ * their first pixel -- at BOTH the first and last display rows. This
+ * is exactly the shape of check that caught the bug in the first place
+ * (a live rendering showed column 0 only half-width); a test that only
+ * sampled column 0's first pixel would not have caught it, since that
+ * one pixel happened to be correct even while the other three weren't. */
+static void test_full_screen_columns_and_rows_render_correctly(void) {
+    Harness h;
+    setup(&h);
+
+    uint8_t solid[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    for (int row = 0; row < 25; row++) {
+        for (int col = 0; col < 40; col++) {
+            h.ram[0x0400 + row * 40 + col] = 1;
+            h.color_ram[row * 40 + col] = (uint8_t)((col % 15) + 1); /* avoid 0 (black), it'd be indistinguishable from an unrendered pixel */
+        }
+    }
+    for (int r = 0; r < 8; r++) {
+        h.ram[1 * 8 + r] = solid[r];
+    }
+
+    run_to_line_cycle1(&h.vic, 51); /* first display row (RC=0) */
+    run_cycles(&h.vic, 63);
+
+    uint16_t col0_start = (uint16_t)((VIC_FIRST_LINE_X + (16 - 1 + 0) * 8 + 4) % VIC_X_MODULUS);
+    uint16_t col39_start = (uint16_t)((VIC_FIRST_LINE_X + (16 - 1 + 39) * 8 + 4) % VIC_X_MODULUS);
+    uint8_t expected_col0 = (uint8_t)((0 % 15) + 1);
+    uint8_t expected_col39 = (uint8_t)((39 % 15) + 1);
+
+    for (int p = 0; p < 8; p++) {
+        TEST_ASSERT_EQ_U8(h.vic.framebuffer[51][(col0_start + p) % VIC_X_MODULUS], expected_col0);
+        TEST_ASSERT_EQ_U8(h.vic.framebuffer[51][(col39_start + p) % VIC_X_MODULUS], expected_col39);
+    }
+
+    run_to_line_cycle1(&h.vic, 243); /* last display row (row 24 of 25: 51 + 24*8) */
+    run_cycles(&h.vic, 63);
+
+    for (int p = 0; p < 8; p++) {
+        TEST_ASSERT_EQ_U8(h.vic.framebuffer[243][(col0_start + p) % VIC_X_MODULUS], expected_col0);
+        TEST_ASSERT_EQ_U8(h.vic.framebuffer[243][(col39_start + p) % VIC_X_MODULUS], expected_col39);
+    }
+
+    /* The border immediately outside both edge columns must NOT show
+     * the column's color -- confirms the column isn't bleeding past
+     * where it should stop (the flip side of "isn't clipped short"). */
+    TEST_ASSERT(h.vic.framebuffer[51][(col0_start - 1 + VIC_X_MODULUS) % VIC_X_MODULUS] != expected_col0);
+    TEST_ASSERT(h.vic.framebuffer[51][(col39_start + 8) % VIC_X_MODULUS] != expected_col39);
 }
 
 /* ---------------------------------------------------------------- */
@@ -380,7 +443,8 @@ int main(void) {
     test_no_bad_line_without_den();
 
     test_standard_text_mode_pixel_colors();
-    test_first_three_c_accesses_read_forced_ff();
+    test_normal_bad_line_c_access_reads_real_data_not_forced_ff();
+    test_full_screen_columns_and_rows_render_correctly();
 
     test_upper_border_before_display_window();
     test_raster_split_border_color_mid_frame();
