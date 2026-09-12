@@ -175,6 +175,226 @@ static void handle_key_event(Machine *m, KeyState *ks, SDL_Scancode sc, bool dow
 }
 
 /* ------------------------------------------------------------------ */
+/* Paste-as-typing: Ctrl+V / Shift+Insert types the clipboard's text as  */
+/* a sequence of synthetic keypresses, exactly the convenience input     */
+/* method docs/peripherals.md's Keyboard section anticipates ("a real,  */
+/* common situation... hold each synthetic keypress for long enough     */
+/* that the real KERNAL's interrupt-driven keyboard scan can actually   */
+/* see it"). Built for the same reason as that section says: reliably   */
+/* typing whole BASIC program listings by hand is slow and error-prone. */
+/* ------------------------------------------------------------------ */
+
+/* ASCII -> C64Key (+ whether LSHIFT is needed), for the characters a
+ * pasted BASIC listing is realistically made of. Best-effort/disclosed
+ * approximate for punctuation shift-mappings not central to typing
+ * BASIC (docs/peripherals.md's own "Known gaps" convention) -- letters,
+ * digits, space, and RETURN are exact; a handful of common symbols
+ * (colon, semicolon, comma, period, quote, plus/minus, equals,
+ * parentheses, slash, dollar, less-than/greater-than) are mapped to
+ * their real C64 keyboard position -- `<`/`>` were missing from this
+ * list's first version and silently dropped every comparison operator
+ * out of a real, user-pasted BASIC program (`IF X<24 OR X>220`) before
+ * being added; real hardware: SHIFT+comma/SHIFT+period. Lowercase
+ * input maps to the SAME (unshifted) key as its
+ * uppercase form, matching how a real C64 keyboard has only one set of
+ * letter keys (producing uppercase PETSCII by default) -- there is no
+ * real "lowercase" to type on a stock C64 in this mode. Unmapped
+ * characters are silently skipped. */
+static bool char_to_c64key(char c, C64Key *out_key, bool *out_shift) {
+    *out_shift = false;
+    if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+
+    switch (c) {
+        case 'A': *out_key = C64KEY_A; return true;
+        case 'B': *out_key = C64KEY_B; return true;
+        case 'C': *out_key = C64KEY_C; return true;
+        case 'D': *out_key = C64KEY_D; return true;
+        case 'E': *out_key = C64KEY_E; return true;
+        case 'F': *out_key = C64KEY_F; return true;
+        case 'G': *out_key = C64KEY_G; return true;
+        case 'H': *out_key = C64KEY_H; return true;
+        case 'I': *out_key = C64KEY_I; return true;
+        case 'J': *out_key = C64KEY_J; return true;
+        case 'K': *out_key = C64KEY_K; return true;
+        case 'L': *out_key = C64KEY_L; return true;
+        case 'M': *out_key = C64KEY_M; return true;
+        case 'N': *out_key = C64KEY_N; return true;
+        case 'O': *out_key = C64KEY_O; return true;
+        case 'P': *out_key = C64KEY_P; return true;
+        case 'Q': *out_key = C64KEY_Q; return true;
+        case 'R': *out_key = C64KEY_R; return true;
+        case 'S': *out_key = C64KEY_S; return true;
+        case 'T': *out_key = C64KEY_T; return true;
+        case 'U': *out_key = C64KEY_U; return true;
+        case 'V': *out_key = C64KEY_V; return true;
+        case 'W': *out_key = C64KEY_W; return true;
+        case 'X': *out_key = C64KEY_X; return true;
+        case 'Y': *out_key = C64KEY_Y; return true;
+        case 'Z': *out_key = C64KEY_Z; return true;
+
+        case '0': *out_key = C64KEY_0; return true;
+        case '1': *out_key = C64KEY_1; return true;
+        case '2': *out_key = C64KEY_2; return true;
+        case '3': *out_key = C64KEY_3; return true;
+        case '4': *out_key = C64KEY_4; return true;
+        case '5': *out_key = C64KEY_5; return true;
+        case '6': *out_key = C64KEY_6; return true;
+        case '7': *out_key = C64KEY_7; return true;
+        case '8': *out_key = C64KEY_8; return true;
+        case '9': *out_key = C64KEY_9; return true;
+
+        case ' ': *out_key = C64KEY_SPACE; return true;
+        case '\n': *out_key = C64KEY_RETURN; return true;
+        case '\r': return false; /* skip -- \r\n line endings would otherwise double-RETURN */
+
+        case ':': *out_key = C64KEY_COLON; return true;
+        case ';': *out_key = C64KEY_SEMICOLON; return true;
+        case ',': *out_key = C64KEY_COMMA; return true;
+        case '.': *out_key = C64KEY_PERIOD; return true;
+        case '/': *out_key = C64KEY_SLASH; return true;
+        case '+': *out_key = C64KEY_PLUS; return true;
+        case '-': *out_key = C64KEY_MINUS; return true;
+        case '=': *out_key = C64KEY_EQUALS; return true;
+        case '*': *out_key = C64KEY_ASTERISK; return true;
+        case '$': *out_key = C64KEY_POUND; return true;
+        case '(': *out_key = C64KEY_8; *out_shift = true; return true;
+        case ')': *out_key = C64KEY_9; *out_shift = true; return true;
+        case '"': *out_key = C64KEY_2; *out_shift = true; return true;
+        case '<': *out_key = C64KEY_COMMA; *out_shift = true; return true;
+        case '>': *out_key = C64KEY_PERIOD; *out_shift = true; return true;
+
+        default: return false;
+    }
+}
+
+/* State machine for typing out a pasted string one key at a time, at a
+ * cadence tied to real machine cycles (not host wall-clock time, so it
+ * stays correct however fast/slow the emulation itself is running).
+ * Each character: press, hold for HOLD_CYCLES real PHI2 cycles, release,
+ * wait GAP_CYCLES more before the next press -- comfortably longer than
+ * one real jiffy period (~16421 cycles, docs/cia.md) so the KERNAL's
+ * own interrupt-driven scan can't miss it between two scans, per
+ * docs/peripherals.md's own explicit warning about this. */
+typedef struct PasteState {
+    char *text;   /* malloc'd by SDL_GetClipboardText(), freed when done */
+    size_t pos;
+    bool key_down;
+    bool shift_was_down_before;
+    bool current_key_needs_shift;
+    C64Key current_key;
+    uint64_t next_transition_cycle;
+} PasteState;
+
+/* Hold/gap duration, in real PHI2 cycles, derived from the machine's
+ * OWN currently-configured jiffy period (CIA1 Timer A's reload value --
+ * see docs/cia.md) rather than a hardcoded constant, so this stays
+ * correct even if something reprograms the timer. 1.5 jiffy periods to
+ * hold (comfortably more than the one full period needed to guarantee
+ * the KERNAL's scan catches it) plus 1 period as a release gap (so a
+ * scan can register the release before the next press) -- 2.5 periods
+ * per character total, versus this feature's first version's 6 (a
+ * needlessly conservative 3+3), after the user found it typed too
+ * slowly for pasting a real program. */
+static uint32_t paste_hold_cycles(const Machine *m) {
+    return m->cia1.ta_latch + m->cia1.ta_latch / 2u;
+}
+static uint32_t paste_gap_cycles(const Machine *m) {
+    return m->cia1.ta_latch;
+}
+
+static void paste_start(Machine *m, PasteState *ps, KeyState *ks) {
+    if (ps->text) {
+        /* A previous paste was retriggered mid-flight (e.g. the user
+         * pressed Ctrl+V again before the first one finished) -- if it
+         * had a synthetic key physically "held" at this exact moment,
+         * release it now. Without this it stays stuck down on the real
+         * C64 keyboard matrix forever (until some later coincidence
+         * happens to press the same key again), silently corrupting
+         * every subsequent keypress's scan result. This was a real,
+         * user-found bug: pasting the same file twice in a row produced
+         * visibly scrambled/wrong characters. */
+        if (ps->key_down) {
+            keyboard_matrix_set_key(&m->keyboard, ps->current_key, false);
+            if (ps->current_key_needs_shift) {
+                ks->real_lshift_down = ps->shift_was_down_before;
+                update_lshift(m, ks);
+            }
+        }
+        SDL_free(ps->text);
+        ps->text = NULL;
+    }
+    char *clip = SDL_GetClipboardText();
+    if (clip == NULL || clip[0] == '\0') {
+        if (clip) SDL_free(clip);
+        return;
+    }
+    ps->text = clip;
+    ps->pos = 0;
+    ps->key_down = false;
+    ps->shift_was_down_before = false; /* see the CTRL/SHIFT clearing below -- this trigger's own
+                                         * modifier is never meant to still be "held" once typing starts */
+    ps->next_transition_cycle = m->total_cycles; /* act immediately on the next tick */
+
+    /* The trigger combo itself (Ctrl+V or Shift+Insert) has, by this
+     * point, already pressed CTRL and/or LSHIFT on the real C64
+     * keyboard matrix via the normal handle_key_event() path for their
+     * own KEYDOWN events -- their matching KEYUP events won't arrive
+     * until the host key is physically released, which can easily
+     * still be true when the FIRST synthetic character starts typing
+     * (e.g. CTRL+1 selects a color code on real hardware, not the
+     * digit '1'). Force them off here so the very first pasted
+     * character isn't corrupted by the shortcut used to start it. */
+    keyboard_matrix_set_key(&m->keyboard, C64KEY_CTRL, false);
+    keyboard_matrix_set_key(&m->keyboard, C64KEY_LSHIFT, false);
+    keyboard_matrix_set_key(&m->keyboard, C64KEY_RSHIFT, false);
+    ks->real_lshift_down = false;
+    ks->cursor_left_down = false;
+    ks->cursor_up_down = false;
+}
+
+static void paste_tick(Machine *m, PasteState *ps, KeyState *ks) {
+    if (!ps->text) {
+        return;
+    }
+    if (m->total_cycles < ps->next_transition_cycle) {
+        return;
+    }
+    if (ps->key_down) {
+        keyboard_matrix_set_key(&m->keyboard, ps->current_key, false);
+        if (ps->current_key_needs_shift) {
+            ks->real_lshift_down = ps->shift_was_down_before;
+            update_lshift(m, ks);
+        }
+        ps->key_down = false;
+        ps->next_transition_cycle = m->total_cycles + paste_gap_cycles(m);
+        return;
+    }
+
+    while (ps->text[ps->pos] != '\0') {
+        C64Key key;
+        bool shift;
+        char c = ps->text[ps->pos++];
+        if (!char_to_c64key(c, &key, &shift)) {
+            continue; /* unmapped character -- skip it, keep typing the rest */
+        }
+        if (shift) {
+            ks->real_lshift_down = true;
+            update_lshift(m, ks);
+        }
+        keyboard_matrix_set_key(&m->keyboard, key, true);
+        ps->current_key = key;
+        ps->current_key_needs_shift = shift;
+        ps->key_down = true;
+        ps->next_transition_cycle = m->total_cycles + paste_hold_cycles(m);
+        return;
+    }
+
+    /* Reached the end of the pasted text. */
+    SDL_free(ps->text);
+    ps->text = NULL;
+}
+
+/* ------------------------------------------------------------------ */
 /* Joystick: numpad fallback (docs/peripherals.md explicitly allows     */
 /* this instead of the real SDL joystick/game-controller API), driving */
 /* whichever of the two C64 ports is currently selected. F9 toggles     */
@@ -285,6 +505,7 @@ int main(int argc, char **argv) {
     double cycle_accum = 0.0;
     uint64_t last_frame_rendered = UINT64_MAX;
     KeyState keystate = {0};
+    PasteState paste_state = {0};
     bool joystick_port2 = true; /* real hardware convention: single-joystick software expects port 2 */
 
     int16_t *sample_buf = malloc(sizeof(int16_t) * (size_t)(AUDIO_SAMPLE_RATE / 2));
@@ -304,6 +525,17 @@ int main(int argc, char **argv) {
                         joystick_port2 = !joystick_port2;
                         break;
                     }
+                    /* Ctrl+V or Shift+Insert: paste the clipboard as a
+                     * sequence of synthetic keypresses -- see the
+                     * "Paste-as-typing" section above. */
+                    bool mod_ctrl = (SDL_GetModState() & KMOD_CTRL) != 0;
+                    bool mod_shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
+                    if (down && !e.key.repeat &&
+                        ((e.key.keysym.scancode == SDL_SCANCODE_V && mod_ctrl) ||
+                         (e.key.keysym.scancode == SDL_SCANCODE_INSERT && mod_shift))) {
+                        paste_start(&m, &paste_state, &keystate);
+                        break;
+                    }
                     if (!e.key.repeat) {
                         handle_key_event(&m, &keystate, e.key.keysym.scancode, down);
                         handle_joystick_key(&m, joystick_port2, e.key.keysym.scancode, down);
@@ -314,6 +546,8 @@ int main(int argc, char **argv) {
                     break;
             }
         }
+
+        paste_tick(&m, &paste_state, &keystate);
 
         if (audio_dev != 0) {
             Uint32 queued_bytes = SDL_GetQueuedAudioSize(audio_dev);
@@ -353,6 +587,9 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (paste_state.text) {
+        SDL_free(paste_state.text);
+    }
     if (audio_dev != 0) {
         SDL_CloseAudioDevice(audio_dev);
     }

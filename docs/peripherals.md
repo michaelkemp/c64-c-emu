@@ -173,9 +173,44 @@ in the real KERNAL's own screen memory. PASSES against the user's
 staged ROMs — a representative sample of the 64 positions, not an
 exhaustive sweep, but genuine, primary-hardware-verified confirmation
 that `src/c64/keyboard.h`'s community-sourced layout table is actually
-correct, not just plausible. Not independently verified live through
-actual SDL2 keyboard events (no input-simulation tool like `xdotool`
-was available in the development environment) — see "Known gaps".
+correct, not just plausible.
+
+**Also live-verified through actual SDL2 keyboard events**, once
+`python-xlib`'s XTEST extension (`Xlib.ext.xtest.fake_input()`) was
+found to be available as an input-simulation method after all (no
+`xdotool`/`ydotool`/`wtype` was installed, but `python3 -c "import
+Xlib"` was) — this drives real X11 key events into the actual focused
+window, exercising the true `SDL_KEYDOWN`/`SDL_KEYUP` path end to end,
+not just the `KeyboardMatrix` API directly. This is also how the
+paste-as-typing feature below was verified.
+
+**Paste-as-typing** (this section's own suggested convenience input
+method, added because reliably hand-typing whole BASIC listings for
+testing is exactly as slow and error-prone as this section warns):
+Ctrl+V or Shift+Insert types the current clipboard contents as a
+sequence of synthetic keypresses — see `paste_start()`/`paste_tick()`/
+`char_to_c64key()` in `sdl_frontend.c`. Each character is held for 1.5
+real jiffy periods and released for 1 more (2.5 periods total,
+~2.4x faster than this feature's first version's needlessly
+conservative 3+3, after live testing showed that felt too slow for
+pasting a real program) — still comfortably longer than the one full
+period needed for the KERNAL's own interrupt-driven scan to catch it,
+per this section's own warning, and derived from the machine's actual
+current CIA1 Timer A reload value rather than a hardcoded constant.
+Covers uppercase/lowercase letters (folded to the single, real
+uppercase-only C64 key), digits, space, return, and a representative
+handful of common BASIC-listing punctuation — an explicitly
+approximate, disclosed mapping (see "Known gaps"), not an exhaustive
+one.
+
+**A real bug found and fixed via this same live-input testing**: the
+Ctrl (or Shift, for the Insert variant) held to trigger the paste
+shortcut was still logically pressed on the real C64 keyboard matrix
+(via the ordinary `handle_key_event()` path for its own KEYDOWN, whose
+matching KEYUP hadn't arrived yet) at the exact moment the first
+synthetic character started typing — corrupting it (e.g. CTRL+1 selects
+a color code on real hardware, not the digit `1`). `paste_start()` now
+explicitly clears CTRL/LSHIFT/RSHIFT the moment a paste begins.
 
 ## Joystick
 
@@ -241,9 +276,28 @@ it, as opposed to through the SID module in isolation per
   hardware has only one physical key per pair, so this is an artifact
   unique to faking the shift-toggle with two separate host keys, not a
   real hardware scenario; low-impact, not reference-counted.
-- Live SDL2 keyboard-event verification (as opposed to the direct
-  `KeyboardMatrix` API verification `test_keyboard_input.c` does) is a
-  manual check, not automated — see "Verification target" above.
+- Live SDL2 keyboard-event verification is now done (see the Keyboard
+  section's `python-xlib` note above) but only ad hoc, by hand during
+  this development session — not wired into `make integration` as a
+  repeatable automated check (doing so would mean adding a Python/XTEST
+  dependency to the test suite, a real trade-off not taken lightly, so
+  it's left as a manual/future improvement rather than done implicitly).
+- `char_to_c64key()`'s punctuation coverage is a representative,
+  disclosed-approximate subset (colon, semicolon, comma, period,
+  slash, plus, minus, equals, asterisk, pound, parentheses, quote,
+  less-than, greater-than) — not exhaustive; unmapped characters in a
+  pasted string are silently skipped rather than typed incorrectly.
+  `<`/`>` were missing from this list's first version, silently
+  dropping every comparison operator out of a real, user-pasted BASIC
+  program (`IF X<24 OR X>220 THEN...`) before the gap was found and
+  fixed by testing against that exact file end to end.
+- A second real bug, also user-found by pasting the same real BASIC
+  file: retriggering a paste (Ctrl+V again) before the previous one
+  finished left its in-flight synthetic key permanently "held" on the
+  real C64 keyboard matrix (nothing ever released it), silently
+  corrupting every subsequent keystroke's scan result into visibly
+  scrambled characters. `paste_start()` now releases any such stuck key
+  first.
 - A known-frequency test tone through the actual SDL2 audio pipeline
   specifically (as opposed to the pipeline's own format/activity, which
   was live-verified, and the SID module in isolation, which
