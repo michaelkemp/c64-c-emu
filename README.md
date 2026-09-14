@@ -133,10 +133,17 @@ make run            # Phase 7: the real thing -- a live SDL2 window,
                     # docs/peripherals.md.
 ```
 
+`programs/basic/` has a handful of hand-written BASIC listings for
+exercising the real, running machine end to end once `make run` is up
+— paste one in (`Ctrl+V`) at the real "READY." prompt and `RUN` it; see
+`programs/basic/README.md`, including two real bugs (a silent SID noise
+waveform, a misdirected `$` keypress) this way of testing actually
+found.
+
 All three no-ROM test tiers currently pass (or, for `integration`, SKIP
-cleanly with no ROMs staged): 260 hand-written unit-test assertions
+cleanly with no ROMs staged): 261 hand-written unit-test assertions
 (70 CPU + 40 memory map + 59 CIA + 15 keyboard/joystick + 28 VIC-II +
-24 SID + 24 machine), and the full Dormann suite (traps at its
+25 SID + 24 machine), and the full Dormann suite (traps at its
 documented success address, `$3469`, after 96,241,367 cycles). With
 real ROMs staged, `tests/integration/test_boot.c`,
 `tests/integration/test_jiffy_clock.c`, and

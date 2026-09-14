@@ -114,6 +114,18 @@ static C64Key scancode_to_c64key(SDL_Scancode sc, bool *out_is_cursor_left, bool
         case SDL_SCANCODE_SLASH: return C64KEY_SLASH;
         case SDL_SCANCODE_BACKSLASH: return C64KEY_POUND;
 
+        /* No standard PC keyboard has a physical key at the real C64's
+         * up-arrow position (BASIC V2's exponentiation operator, `^`)
+         * -- unlike every other punctuation mapping above, this one has
+         * no honest "same physical position" answer, so it borrows the
+         * otherwise-unused plain Insert key (distinct from Backspace,
+         * already doing double duty as the real INST/DEL key above).
+         * Shift+Insert is already claimed by the paste-as-typing
+         * shortcut and is intercepted before reaching this function, so
+         * there's no conflict -- only a bare, unshifted Insert press
+         * reaches this mapping. */
+        case SDL_SCANCODE_INSERT: return C64KEY_UP_ARROW;
+
         case SDL_SCANCODE_RIGHT: return C64KEY_CRSR_LR;
         case SDL_SCANCODE_LEFT:
             *out_is_cursor_left = true;
@@ -200,7 +212,15 @@ static void handle_key_event(Machine *m, KeyState *ks, SDL_Scancode sc, bool dow
  * KERNAL: unshifted POUND produces screen code $1C, the £ glyph). Real
  * `$` is SHIFT+4 (screen code $24), following the same classic PETSCII
  * shifted-digit-row convention as `(` (SHIFT+8) and `)` (SHIFT+9)
- * above -- confirmed the same way. Lowercase input maps to the SAME
+ * above -- confirmed the same way. `^` was missing entirely from this
+ * list's first version -- real Commodore BASIC V2's exponentiation
+ * operator is the physical UP-ARROW key (unshifted), which is exactly
+ * what a modern pasted listing's ASCII caret `^` represents; without
+ * this mapping every `^` in a pasted program (e.g.
+ * `programs/basic/sprite_test2.bas`'s `2^N`/`2^(7-BP)`) was silently
+ * dropped, corrupting the expression and producing a real "SYNTAX
+ * ERROR" when the mangled line was tokenized. Lowercase input maps to
+ * the SAME
  * (unshifted) key as its
  * uppercase form, matching how a real C64 keyboard has only one set of
  * letter keys (producing uppercase PETSCII by default) -- there is no
@@ -266,6 +286,7 @@ static bool char_to_c64key(char c, C64Key *out_key, bool *out_shift) {
         case '(': *out_key = C64KEY_8; *out_shift = true; return true;
         case ')': *out_key = C64KEY_9; *out_shift = true; return true;
         case '"': *out_key = C64KEY_2; *out_shift = true; return true;
+        case '^': *out_key = C64KEY_UP_ARROW; return true; /* BASIC V2's exponentiation operator */
         case '<': *out_key = C64KEY_COMMA; *out_shift = true; return true;
         case '>': *out_key = C64KEY_PERIOD; *out_shift = true; return true;
 

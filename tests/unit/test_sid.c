@@ -182,6 +182,27 @@ static void test_noise_combined_with_other_locks_up_to_zero(void) {
     TEST_ASSERT_EQ_U8(sid_read(&sid, REG_OSC3), 0x00);
 }
 
+/* Regression test for a real bug: the noise LFSR is all-zero is a
+ * genuine fixed point (both feedback taps read 0, so the fed-back bit
+ * stays 0 forever), and sid_init() used to leave every voice's lfsr at
+ * its memset-to-0 default -- so noise selected alone (not combined
+ * with anything else) came out permanently silent from a cold init,
+ * exactly the state real BASIC programs that just select the noise
+ * waveform and never touch the TEST bit start from. See sid_init()'s
+ * own comment and docs/sid.md's Known Gaps. */
+static void test_noise_alone_is_not_silent_from_cold_init(void) {
+    Sid sid;
+    setup(&sid);
+    sid_write(&sid, 14, 0x00); /* voice 3 freq lo */
+    sid_write(&sid, 15, 0x10); /* voice 3 freq hi */
+    sid_write(&sid, 18, SID_CTRL_NOISE | SID_CTRL_GATE); /* voice 3 control: noise alone, no TEST strobe */
+
+    for (int i = 0; i < 1000; i++) {
+        sid_tick(&sid, 1);
+    }
+    TEST_ASSERT(sid_read(&sid, REG_OSC3) != 0x00);
+}
+
 /* ---------------------------------------------------------------- */
 /* Envelope generator                                                 */
 /* ---------------------------------------------------------------- */
@@ -311,6 +332,7 @@ int main(void) {
 
     test_combined_waveforms_and_together();
     test_noise_combined_with_other_locks_up_to_zero();
+    test_noise_alone_is_not_silent_from_cold_init();
 
     test_attack_reaches_255_and_transitions_to_decay();
     test_gate_off_releases_from_current_level_not_sustain();

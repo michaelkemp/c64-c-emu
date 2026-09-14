@@ -75,6 +75,26 @@ AND, and Noise combined with anything else forced to 0 (the documented
 "lock up" hazard) — not reSID's more elaborate measured-table model of
 the same real, messier chip behavior.
 
+**A second, related real bug, found by actually pasting and running
+`programs/basic/sid_diagnostic.bas` through the live audio pipeline**:
+noise came out completely silent on all three voices, every time, even
+though nothing combined it with another waveform. All-zero is *also* a
+genuine fixed point of this same LFSR on its own — taps 17 and 22 both
+read 0, so the fed-back bit stays 0 forever without ever being clocked
+back to nonzero — and `sid_init()` used to leave every voice's LFSR at
+its memset-to-zero default, so noise started every run already stuck in
+that state. Real, unmodified noise-playing BASIC/ML code (this
+project's own test program included) doesn't work around this by
+strobing the TEST bit first, because on real hardware it doesn't need
+to — no primary source pins down the exact value real silicon's shift
+register holds coming out of power-on/RESET, so rather than leave every
+voice starting in the one state guaranteed to be permanently silent,
+`sid_init()` now seeds each voice's LFSR to `0x7FFFFF` (23 ones) — the
+same "charged" value this project's own TEST-bit modeling already
+settles to. See `sid_init()`'s own comment,
+`tests/unit/test_sid.c`'s `test_noise_alone_is_not_silent_from_cold_init`,
+and `programs/basic/README.md`.
+
 **Hard sync** (each voice's oscillator can be reset by voice 3's — or in
 some real wiring, the "previous" voice's — oscillator crossing zero) and
 **ring modulation** (XORing two voices' triangle outputs) are both real,
@@ -196,3 +216,10 @@ the oscillator's own frequency.
 - External audio input (`EXT IN`, the `FILTEX`/"3 OFF" mixing path) is
   not modeled — there's no external audio source to mix in this
   project.
+- The noise LFSR's exact real power-on/RESET value isn't pinned down by
+  any primary source this project could verify; `sid_init()` seeds it
+  to `0x7FFFFF` (the same value this project's own TEST-bit modeling
+  settles to) specifically to avoid the permanently-silent-noise fixed
+  point at all-zero, rather than claiming that seed matches real
+  silicon exactly — see "Oscillators" above for the full account of the
+  bug this fixed.

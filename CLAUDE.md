@@ -160,6 +160,17 @@ tools/
                          # a visual "does the VIC-II actually render anything" check
                          # before Phase 6/7 exist for real; `make demo` runs it.
 roms/                   # gitignored, populated by stage_roms.sh only
+programs/
+  basic/                # hand-written BASIC listings for exercising the real,
+                         # running machine (make run) end to end -- see
+                         # programs/basic/README.md; added alongside Phase 7's
+                         # paste-as-typing feature and directly responsible for
+                         # finding several real bugs (see Phases 5/7 above)
+reference/               # a working knowledge base of REAL C64 programming facts
+                         # (sprites/sound/PETSCII/screen/BASIC-V2-language) learned
+                         # while writing programs/basic/ listings -- distinct from
+                         # docs/, which documents this EMULATOR's own implementation;
+                         # see reference/README.md for the distinction and convention
 ```
 
 Build system: a plain Makefile (see the README and
@@ -209,7 +220,7 @@ was first built on; either was acceptable per the roadmap.
       slice of Phase 6/7, built because there was otherwise no way to
       see whether the VIC-II actually renders anything correct; they
       are not those phases themselves.
-- [~] **Phase 5** — MOS 6581 SID: done and unit-tested (24 assertions),
+- [~] **Phase 5** — MOS 6581 SID: done and unit-tested (25 assertions),
       sourced directly from the primary datasheet — see `src/c64/sid.c`,
       `docs/sid.md`, `docs/sources.md`. All four oscillators, hard sync,
       ring mod, ADSR (linear decay/release ramp — a disclosed
@@ -218,7 +229,15 @@ was first built on; either was acceptable per the roadmap.
       model). Verified against the datasheet's own Appendix A frequency
       table (440Hz test, landed exactly on target). Wired into the bus
       in Phase 6; a real audio output device (`SDL_QueueAudio`) exists
-      as of Phase 7.
+      as of Phase 7. **A genuine, previously-undisclosed bug was found**
+      by actually pasting and running `programs/basic/sid_diagnostic.bas`
+      through the live audio pipeline: the noise waveform was completely
+      silent on all three voices. All-zero is a real fixed point of the
+      noise LFSR, and `sid_init()` left it there by default (from its
+      blanket `memset`); real noise-playing code doesn't normally need
+      to work around this (see `docs/sid.md`'s Oscillators/Known Gaps
+      sections for the full account). Fixed by seeding the LFSR to
+      `0x7FFFFF` at init instead of 0.
 - [x] **Phase 6** — The real machine: CPU + `C64Memory` + both CIAs +
       VIC-II + SID driven together by one true per-cycle interleaved
       loop, with real IRQ (level, OR of both CIAs + VIC-II raster) and
@@ -272,7 +291,18 @@ was first built on; either was acceptable per the roadmap.
       measured 4-pixel g-access output offset. Fixed in
       `src/c64/vic_ii.c`; see `docs/vic-ii.md`'s Verification targets
       section for the full account and `tests/unit/test_vic_ii.c`'s new
-      full-40-column/25-row edge-to-edge regression test.
+      full-40-column/25-row edge-to-edge regression test. **Paste-as-
+      typing** (`Ctrl+V`/`Shift+Insert`, `paste_start()` in
+      `sdl_frontend.c`) was added on top of this phase so real BASIC
+      listings — see `programs/basic/`, added to give this phase (and
+      Phase 5's SID) something concrete to paste and run — could be
+      tested end to end without hand-typing them, and found three more
+      real bugs this way: `<`/`>` missing from `char_to_c64key()`
+      (dropping every comparison operator), a retriggered paste leaving
+      its in-flight key stuck on the real keyboard matrix, and `$`
+      mapped to the physical POUND key (which types `£`, not `$`) —
+      see `docs/peripherals.md`'s Known Gaps for the full account of
+      all three.
 - [ ] Everything else — see `docs/roadmap.md`.
 
 ## Running tests

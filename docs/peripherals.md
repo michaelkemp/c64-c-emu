@@ -284,13 +284,14 @@ it, as opposed to through the SID module in isolation per
   it's left as a manual/future improvement rather than done implicitly).
 - `char_to_c64key()`'s punctuation coverage is a representative,
   disclosed-approximate subset (colon, semicolon, comma, period,
-  slash, plus, minus, equals, asterisk, pound, parentheses, quote,
-  less-than, greater-than) — not exhaustive; unmapped characters in a
+  slash, plus, minus, equals, asterisk, dollar, caret, parentheses,
+  quote, less-than, greater-than) — not exhaustive; unmapped characters in a
   pasted string are silently skipped rather than typed incorrectly.
   `<`/`>` were missing from this list's first version, silently
   dropping every comparison operator out of a real, user-pasted BASIC
-  program (`IF X<24 OR X>220 THEN...`) before the gap was found and
-  fixed by testing against that exact file end to end.
+  program (`IF X<24 OR X>220 THEN...`, `programs/basic/sprite_test.bas`)
+  before the gap was found and fixed by testing against that exact file
+  end to end.
 - A second real bug, also user-found by pasting the same real BASIC
   file: retriggering a paste (Ctrl+V again) before the previous one
   finished left its in-flight synthetic key permanently "held" on the
@@ -298,6 +299,40 @@ it, as opposed to through the SID module in isolation per
   corrupting every subsequent keystroke's scan result into visibly
   scrambled characters. `paste_start()` now releases any such stuck key
   first.
+- A third real bug, found the same way by pasting
+  `programs/basic/sid_diagnostic.bas` (whose `WN$(...)` string-array
+  variable names are this project's first pasted use of a literal `$`):
+  `$` was mapped to the physical POUND key, which actually types `£` on
+  real hardware (verified against the real KERNAL: unshifted POUND
+  produces screen code `$1C`, the £ glyph, not `$24`). Real `$` is
+  SHIFT+4 (screen code `$24`), the same shifted-digit-row convention as
+  `(`/`)` above — fixed in `char_to_c64key()`.
+- A fourth real bug, found by pasting `programs/basic/sprite_test2.bas`
+  (whose shape-building math uses `2^N`/`2^(7-BP)`): `^` was missing
+  from `char_to_c64key()` entirely, so every `^` in a pasted listing
+  was silently dropped rather than mistyped, corrupting the expression
+  and producing a real `SYNTAX ERROR` once the mangled line was
+  tokenized. Fixed by mapping `^` to the physical UP-ARROW key
+  (unshifted) — real Commodore BASIC V2's actual exponentiation
+  operator, which is exactly what a pasted listing's ASCII caret
+  represents. The **live/typed** keyboard path
+  (`scancode_to_c64key()`) had the same gap independently (no scancode
+  reached `C64KEY_UP_ARROW` at all) — fixed by mapping the physical
+  Insert key (distinct from Backspace, which already does the real
+  INST/DEL key's job) to it, since no standard PC keyboard has a key at
+  the real C64's actual up-arrow position; Shift+Insert is intercepted
+  earlier for the paste shortcut, so a bare Insert press is the only
+  one that reaches this mapping, with no conflict.
+- **Real BASIC V2's own line-length limit is a separate hazard from
+  anything in this emulator or its paste feature**: the screen editor
+  (typing *or* pasting) only accepts up to 80 characters (two 40-column
+  screen rows) for one logical program line -- typing/pasting past that
+  produces a real `SYNTAX ERROR`, independent of this project's own
+  code. Found when a user pasted `programs/basic/sprite_test2.bas`,
+  several of whose `REM`-heavy lines were originally over 80 characters
+  long; fixed by shortening/splitting those lines, not by anything in
+  `sdl_frontend.c` (there is nothing to fix here -- this is real BASIC
+  V2 behavior, not a bug). See `reference/basic-v2-quirks.md`.
 - A known-frequency test tone through the actual SDL2 audio pipeline
   specifically (as opposed to the pipeline's own format/activity, which
   was live-verified, and the SID module in isolation, which

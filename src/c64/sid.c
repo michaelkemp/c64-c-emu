@@ -41,6 +41,22 @@ void sid_init(Sid *sid) {
     memset(sid, 0, sizeof(*sid));
     for (int i = 0; i < 3; i++) {
         sid->voice[i].env_state = SID_ENV_RELEASE;
+        /* All-zero is a genuine fixed point of this LFSR (taps 17/22
+         * both read 0, so the fed-back bit is always 0 too) -- real
+         * SID noise can and does lock up silent this way, and the
+         * documented recovery is to strobe the TEST bit, which this
+         * project already models as shifting 1s in until the register
+         * reads 0x7FFFFF (see the TEST-bit branch in
+         * sid_tick_one_cycle()). No primary source pins down the exact
+         * value real silicon's shift register holds coming out of
+         * power-on/RES, so rather than start every voice in that
+         * always-silent fixed point (which real, unmodified BASIC/ML
+         * noise-playing programs -- including this project's own
+         * sid_diagnostic.bas -- don't work around by strobing TEST
+         * first, since on real hardware they don't need to), this
+         * project starts already in the same charged state TEST
+         * produces. See docs/sid.md's Known Gaps. */
+        sid->voice[i].lfsr = 0x7FFFFFu;
     }
 }
 
