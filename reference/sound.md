@@ -66,7 +66,12 @@ scaled to 0-255), low nibble = release rate index (0-15). Attack index
 0 and a decay index around 6-9 with sustain 0 gives a short, self-
 fading "pluck" that needs no explicit gate-off -- convenient for a
 percussive/collision-sound effect that shouldn't block program flow
-with a delay loop.
+with a delay loop. The full 16-attack/16-decay-release rate table (2ms
+to 8s attack, 6ms to 24s decay/release) is cross-verified, value for
+value, against this project's own `ATTACK_CYCLES_1MHZ`/
+`DECAY_RELEASE_CYCLES_1MHZ` tables in `src/c64/sid.c` -- exact match on
+every entry (Commodore 64 Programmer's Reference Guide, Appendix O,
+Table 2).
 
 ## Frequency
 
@@ -85,12 +90,16 @@ going high). **All-zero is a genuine fixed point** -- if the shift
 register ever reaches all zeros, both feedback taps read 0, so it
 shifts in 0 forever and noise stays silent no matter what plays.
 Real, documented recovery: strobe the TEST bit (shifts 1s in until the
-register is charged with real entropy again). A program that selects
-the noise waveform without ever having strobed TEST first is relying
-on the shift register not already being stuck at zero -- which real
-hardware's own reset behavior doesn't obviously guarantee either way,
-and which was a genuine bug in this project's own emulator (fixed by
-seeding the register non-zero at init) -- see `docs/sid.md`'s Known
+register is charged with real entropy again) -- **or a real chip
+RESET**. The Commodore 64 Programmer's Reference Guide's own SID
+appendix (Appendix O, p.464) states it directly: "the Noise output
+will remain silent until reset by the TEST bit **or by bringing RES
+(pin 5) low**." So real hardware's own reset does *not* leave a locked
+generator stuck forever -- it's an active recovery path, same as TEST
+-- which was exactly the gap in this project's own emulator (its
+`sid_init()` used to leave the shift register at the one value
+guaranteed to be silent forever, with nothing to unstick it) -- fixed
+by seeding the register non-zero at init. See `docs/sid.md`'s Known
 Gaps and `programs/basic/sid_diagnostic.bas`'s own notes for the full
 story.
 

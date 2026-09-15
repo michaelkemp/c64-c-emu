@@ -37,6 +37,24 @@ conservative than the article's exact 51, as a small safety margin --
 not independently re-verified pixel-for-pixel, and harmless either
 way for a bouncing-sprite demo).
 
+**A genuine discrepancy between two authoritative-ish sources, worth
+knowing about rather than silently picking one**: the Commodore 64
+Programmer's Reference Guide's own MOB-position section (Appendix N,
+p.442) states "X locations 23 to 347 ($17-$157) and Y locations 50 to
+249 ($32-$F9) are visible." Two things don't line up:
+- Its own decimal "347" doesn't match its own hex "$157" -- `$157` is
+  343 decimal, not 347. This looks like a genuine erratum in the
+  original book itself, since Bauer's article (this project's other
+  cited source) agrees with the *hex* figure: last X coordinate 343.
+- Its Y upper bound (249, `$F9`) is one line short of Bauer's article's
+  250 (`$FA`) -- an unresolved 1-line disagreement between the two
+  sources that neither this project nor the book's own text explains.
+
+Since this project's own bounds already sit safely inside *both*
+versions (see above), nothing here needed a code change -- just worth
+knowing the exact edge value has this small amount of real ambiguity
+if a future test ever needs pixel-perfect border-edge precision.
+
 **The border is not part of collision detection at all** -- it's a
 separate display-priority mechanism (`docs/vic-ii.md`: "border has
 strictly higher display priority than every sprite") that only affects

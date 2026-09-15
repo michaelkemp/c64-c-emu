@@ -86,12 +86,19 @@ its memset-to-zero default, so noise started every run already stuck in
 that state. Real, unmodified noise-playing BASIC/ML code (this
 project's own test program included) doesn't work around this by
 strobing the TEST bit first, because on real hardware it doesn't need
-to — no primary source pins down the exact value real silicon's shift
-register holds coming out of power-on/RESET, so rather than leave every
-voice starting in the one state guaranteed to be permanently silent,
-`sid_init()` now seeds each voice's LFSR to `0x7FFFFF` (23 ones) — the
-same "charged" value this project's own TEST-bit modeling already
-settles to. See `sid_init()`'s own comment,
+to. **Confirmed against a primary source** (the Commodore 64
+Programmer's Reference Guide, Appendix O, p.464 — see
+`docs/sources.md`): "the Noise output will remain silent until reset
+by the TEST bit **or by bringing RES (pin 5) low**" — real hardware's
+own RESET actively clears a locked-up noise generator rather than
+leaving it stuck, which is exactly what this project's old
+memset-to-zero `sid_init()` failed to reproduce. That source still
+doesn't pin down the *exact* value real silicon's shift register holds
+coming out of reset, so rather than leave every voice starting in the
+one state known to be permanently silent, `sid_init()` now seeds each
+voice's LFSR to `0x7FFFFF` (23 ones) — the same "charged" value this
+project's own TEST-bit modeling already settles to. See `sid_init()`'s
+own comment,
 `tests/unit/test_sid.c`'s `test_noise_alone_is_not_silent_from_cold_init`,
 and `programs/basic/README.md`.
 
@@ -217,9 +224,11 @@ the oscillator's own frequency.
   not modeled — there's no external audio source to mix in this
   project.
 - The noise LFSR's exact real power-on/RESET value isn't pinned down by
-  any primary source this project could verify; `sid_init()` seeds it
-  to `0x7FFFFF` (the same value this project's own TEST-bit modeling
-  settles to) specifically to avoid the permanently-silent-noise fixed
-  point at all-zero, rather than claiming that seed matches real
-  silicon exactly — see "Oscillators" above for the full account of the
-  bug this fixed.
+  any primary source this project could verify (the Programmer's
+  Reference Guide, Appendix O, confirms RES *does* clear a locked-up
+  noise generator, but not what specific value it leaves the shift
+  register at); `sid_init()` seeds it to `0x7FFFFF` (the same value
+  this project's own TEST-bit modeling settles to) specifically to
+  avoid the permanently-silent-noise fixed point at all-zero, rather
+  than claiming that seed matches real silicon exactly — see
+  "Oscillators" above for the full account of the bug this fixed.

@@ -40,10 +40,19 @@ poking screen memory directly) needs, independent of any emulator.
 ## A few PETSCII control codes actually used so far
 
 - `CHR$(147)` -- clear screen (and home cursor). Used in
-  `programs/basic/sprite_test2.bas`. Widely known convention; not yet
-  independently re-verified against a primary source in this project
-  the way the register-level facts above were -- flagged here so that
-  distinction doesn't get lost.
+  `programs/basic/sprite_test2.bas`. **Confirmed directly** against the
+  Commodore 64 Programmer's Reference Guide's own CHR$ code appendix
+  (Appendix C, p.380): 147 is the *shifted* CLR/HOME key (clear +
+  home); the same physical key unshifted is `CHR$(19)` (home only, no
+  clear) -- previously only a "widely known, not independently
+  verified" note here, now sourced.
+- Also confirmed from that same table, not yet used in any program
+  here but worth knowing for future ones: `CHR$(18)`/`CHR$(146)` =
+  reverse-video on/off; `CHR$(8)`/`CHR$(9)` = disable/enable the
+  SHIFT+Commodore-key charset-switch combo; `CHR$(14)`/`CHR$(142)` =
+  switch to lower/upper case; `CHR$(144)` = black text. `CHR$(92)` = £
+  -- confirms the PETSCII/ASCII divergence at that code point (ASCII
+  92 is backslash), consistent with the POUND-key finding above.
 
 ## Practical implication for writing test programs
 

@@ -250,3 +250,55 @@ roughly the phase order it was needed.
   this exact purpose ("doesn't correspond to the signal on the VIC
   video output"). See `docs/vic-ii.md`'s verification-target entry for
   the full account of all three fixes together.
+
+## Reference knowledge base (`programs/basic/` + `reference/`)
+
+- **Commodore 64 Programmer's Reference Guide** (Commodore Business
+  Machines, Inc., 1982; ISBN 0-672-22056-3) — the user's own local
+  scanned copy (518 pages, no OCR text layer; read as rendered page
+  images at need, same technique already used for the CIA/SID
+  datasheets). Not fetched or vendored by this project — the user's own
+  file, read for understanding per this project's license discipline.
+  Settled/refined, at the user's request to read through it and note
+  anything new:
+  - **Appendix O (SID chip specs, p.457-481) directly states**: "If any
+    other waveform is selected while Noise is on, the Noise output can
+    'lock up.' ... the Noise output will remain silent until reset by
+    the TEST bit **or by bringing RES (pin 5) low**." Stronger, exactly-
+    cited confirmation than `docs/sid.md`'s Known Gaps previously had
+    ("no primary source pins down...") — doesn't give the exact
+    resulting shift-register value, but does confirm a real chip RESET
+    actively clears the lock-up rather than leaving it permanently
+    silent, directly supporting `sid_init()`'s non-zero LFSR seed. See
+    `docs/sid.md` and `reference/sound.md`.
+  - Table 2 (Envelope Rates, p.466) cross-checked value-for-value (all
+    16 attack + all 16 decay/release times) against `src/c64/sid.c`'s
+    `ATTACK_CYCLES_1MHZ`/`DECAY_RELEASE_CYCLES_1MHZ` arrays — exact
+    match on every entry.
+  - Appendix N (VIC-II chip specs, p.436-456): confirms sprite-sprite/
+    sprite-background collision read-clears-plus-"first collision
+    only" IRQ latch semantics, and sprite priority bit polarity (0=in
+    front, 1=behind), both already implemented as such. Also surfaced a
+    real discrepancy worth flagging rather than silently picking a
+    side: the Guide states visible sprite/MOB coordinates as "X
+    locations 23 to 347 ($17-$157)" — but decimal 347 doesn't match its
+    own hex figure ($157 = 343 decimal), an apparent erratum in the
+    original book (Christian Bauer's article, already this project's
+    cited source, agrees with the hex value: last X coordinate 343).
+    The Guide also states Y locations "50 to 249 ($32-$F9)," one line
+    short of Bauer's article's 250 ($FA) — an unresolved 1-line
+    discrepancy between the two sources. See `reference/sprites.md`.
+  - Appendix C (ASCII and CHR$ codes, p.379-381) confirms `CHR$(147)`
+    is the shifted CLR/HOME key (clear screen + home) — previously only
+    a "widely known, not independently verified" note in
+    `reference/petscii.md`, now directly sourced. Also newly noted:
+    `CHR$(19)` = HOME only (no clear); `CHR$(18)`/`CHR$(146)` = reverse-
+    video on/off; `CHR$(8)`/`CHR$(9)` = disable/enable the
+    SHIFT+Commodore charset-switch key combo; `CHR$(14)`/`CHR$(142)` =
+    switch to lower/upper case; `CHR$(92)` = £ (confirms the PETSCII/
+    ASCII divergence at that code point, consistent with the POUND-key
+    finding in `docs/peripherals.md`). See `reference/petscii.md`.
+  - Chapter 1's "Using the GET Statement" (p.22-24) confirms the exact
+    10-character keyboard buffer size and the canonical
+    `10 GET A$ : IF A$="" THEN 10` polling idiom already used in
+    `programs/basic/sprite_move.bas`. See `reference/basic-v2-quirks.md`.

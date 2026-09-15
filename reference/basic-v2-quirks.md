@@ -110,4 +110,9 @@ KERNAL's own key-repeat/debounce logic automatically; no custom timing
 is needed on top, matching `docs/peripherals.md`'s own "let the real
 KERNAL's repeat logic do its job" convention for this project's
 keyboard handling in general. Used in `programs/basic/sprite_move.bas`
-for direct WASD sprite control.
+for direct WASD sprite control. Confirmed against the Commodore 64
+Programmer's Reference Guide (Chapter 1, "Using the GET Statement,"
+p.22-23): the keyboard buffer holds exactly 10 characters (more typed
+at once are lost), and the book's own recommended idiom is exactly
+`10 GET A$ : IF A$="" THEN 10` -- the same poll-and-loop shape used
+here.
